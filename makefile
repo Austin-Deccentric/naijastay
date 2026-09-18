@@ -4,10 +4,10 @@ install:           ## install deps
 	uv sync
 
 dev:               ## run dev server (reload)
-	uv run fastapi dev src.app.main:app
+	uv run fastapi dev app.main:app
 
 run:               ## run server (prod)
-	uv run fastapi run src.app.main:app
+	uv run fastapi run app.main:app
 
 migrate:           ## apply migrations
 	uv run alembic upgrade head

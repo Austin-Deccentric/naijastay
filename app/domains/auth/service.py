@@ -1,3 +1,7 @@
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core.security import (
     create_access_token,
     hash_password,
@@ -5,40 +9,49 @@ from app.core.security import (
 )
 from app.domains.auth.schemas import RegisterRequest
 from app.domains.users.models import User, UserRole
-from sqlmodel import Session, select
 
 
 async def register_user(
-    session: Session,
+    session: AsyncSession,
     data: RegisterRequest,
 ) -> User:
     """Create and persist a new user account."""
-
-    existing_user = session.exec(
-        select(User).where(User.email == data.email)
-    ).first()
+    
+    email = data.email.strip().lower()
+    result = await session.exec(
+        select(User).where(User.email == email)
+    )
+    existing_user = result.first()
     if existing_user:
         raise ValueError("A user with this email already exists.")
+
     user = User(
-        email=data.email,
+        email=email,
         password_hash=hash_password(data.password),
         role=UserRole.GUEST,
         is_active=True,
     )
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise ValueError("A user with this email already exists.")
+    await session.refresh(user)
     return user
 
+
 async def authenticate_user(
-    session: Session,
+    session: AsyncSession,
     email: str,
     password: str,
 ) -> User | None:
     """Authenticate a user using email and password."""
-    user = session.exec(
+    email = email.strip().lower()
+    result = await session.exec(
         select(User).where(User.email == email)
-    ).first()
+    )
+    user = result.first()
     if user is None:
         return None
     if not user.is_active:

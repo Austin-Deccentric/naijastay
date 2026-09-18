@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt
@@ -7,7 +7,7 @@ import jwt
 from app.core.config import settings
 
 
-async def hash_password(password: str) -> str:
+def hash_password(password: str) -> str:
     password_bytes = password.encode("utf-8")
 
     salt = bcrypt.gensalt()
@@ -16,7 +16,7 @@ async def hash_password(password: str) -> str:
     return hashed_password.decode("utf-8")
 
 
-async def verify_password(password: str, password_hash: str) -> bool:
+def verify_password(password: str, password_hash: str) -> bool:
     password_bytes = password.encode("utf-8")
     hashed_password_bytes = password_hash.encode("utf-8")
 
@@ -26,7 +26,7 @@ async def verify_password(password: str, password_hash: str) -> bool:
     )
 
 def create_access_token(subject: str, role: str) -> str:
-    issued_at = datetime.now(timezone.utc)
+    issued_at = datetime.now(UTC)
     expires_at = issued_at + timedelta(minutes=settings.access_token_expire_minutes)
     payload = {
         "sub": subject,

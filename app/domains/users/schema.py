@@ -1,5 +1,6 @@
-from app.domains.users.models import UserRole
 from pydantic import BaseModel, EmailStr, Field, SecretStr
+
+from app.domains.users.models import UserRole
 
 
 class CreateStaffRequest(BaseModel):
