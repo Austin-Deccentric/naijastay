@@ -2,13 +2,12 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
+from app.core.config import settings
 from fastapi import Depends, FastAPI
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-# from sqlmodel import SQLModel
+# from sqlmodel import SQLModel 
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.core.config import settings
 
 DATABASE_URL = settings.database_url
 

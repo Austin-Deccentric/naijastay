@@ -1,8 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
-
 from app.core.security import create_access_token
-from app.db.session import get_db
+from app.db.session import SessionDep
 from app.domains.auth.schemas import (
     LoginResponse,
     RegisterRequest,
@@ -12,6 +9,7 @@ from app.domains.auth.service import (
     authenticate_user,
     register_user,
 )
+from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter(
     prefix="/auth",
@@ -21,7 +19,7 @@ router = APIRouter(
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(
     data: RegisterRequest,
-    session: Session = Depends(get_db),
+    session: SessionDep,
 ) -> UserResponse:
     """Register a new guest user."""
     try:
@@ -45,7 +43,7 @@ def register(
 def login(
     email: str,
     password: str,
-    session: Session = Depends(get_db),
+    session: SessionDep,
 ) -> LoginResponse:
     """Authenticate a user and return a JWT access token."""
     user = authenticate_user(
@@ -72,27 +70,4 @@ def login(
             role=user.role,
             is_active=user.is_active,
         ),
-    )
-    
-    from fastapi import APIRouter, Depends
-
-from app.core.dependencies import get_current_user
-from app.domains.auth.schemas import UserResponse
-from app.domains.users.models import User
-
-router = APIRouter(
-    prefix="/users",
-    tags=["Users"],
-)
-@router.get("/me", response_model=UserResponse)
-def get_my_profile(
-    current_user: User = Depends(get_current_user),
-) -> UserResponse:
-    """Return the profile of the currently authenticated user."""
-
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        role=current_user.role,
-        is_active=current_user.is_active,
     )
