@@ -1,15 +1,17 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session, select
+from sqlmodel import select
+
 from app.core.security import decode_access_token
-from app.db.session import get_db
+from app.db.session import SessionDep
 from app.domains.users.models import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 async def get_current_user(
+    *,
     token: str = Depends(oauth2_scheme),
-    session: Session = Depends(get_db),
+    session: SessionDep
 ) -> User:
     """Return the authenticated user represented by the JWT."""
     payload = decode_access_token(token)
