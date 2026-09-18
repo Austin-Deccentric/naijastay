@@ -1,10 +1,12 @@
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.core.dependencies import get_current_user
 from app.core.permissions import require_manager
 from app.db.session import SessionDep
 from app.domains.users.models import User
-from app.domains.users.schemas import (
+from app.domains.users.schema import (
     CreateStaffRequest,
     StaffResponse,
 )
@@ -12,7 +14,6 @@ from app.domains.users.service import (
     create_staff,
     disable_staff,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(
     prefix="/users",
@@ -31,11 +32,7 @@ async def get_my_profile(
         "is_active": current_user.is_active,
     }
     
-@router.post(
-    "/staff",
-    response_model=StaffResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/staff", response_model=StaffResponse, status_code=status.HTTP_201_CREATED)
 async def create_staff_account(
     data: CreateStaffRequest,
     session: SessionDep,
@@ -43,7 +40,7 @@ async def create_staff_account(
 ) -> StaffResponse:
     """Allow a manager to create a staff account."""
     try:
-        staff = create_staff(
+        staff = await create_staff(
             session=session,
             data=data,
         )
@@ -71,7 +68,7 @@ async def disable_staff_account(
     """Allow a manager to disable a staff account."""
 
     try:
-        staff = disable_staff(
+        staff = await disable_staff(
             session=session,
             staff_id=staff_id,
         )

@@ -1,11 +1,14 @@
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
+
 from app.core.security import hash_password
+from app.db.session import SessionDep
 from app.domains.users.models import User, UserRole
-from app.domains.users.schemas import CreateStaffRequest
-from sqlmodel import Session, select
+from app.domains.users.schema import CreateStaffRequest
 
 
 async def create_staff(
-    session: Session,
+    session: SessionDep,
     data: CreateStaffRequest,
 ) -> User:
     """Create a new staff account."""
@@ -18,31 +21,37 @@ async def create_staff(
             "Only receptionist or housekeeper accounts can be created as staff."
         )
 
-    existing_user = session.exec(
-        select(User).where(User.email == data.email)
-    ).first()
+    email = data.email.strip().lower()
+    result = await session.exec(
+        select(User).where(User.email == email)
+    )
+    existing_user = result.first()
 
     if existing_user:
         raise ValueError(
             "A user with this email already exists."
         )
     staff = User(
-        email=data.email,
-        password_hash=hash_password(data.password),
+        email=email,
+        password_hash=hash_password(data.password.get_secret_value()),
         role=data.role,
         is_active=True,
     )
     session.add(staff)
-    session.commit()
-    session.refresh(staff)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise ValueError("A user with this email already exists.")
+    await session.refresh(staff)
     return staff
 
 async def disable_staff(
-    session: Session,
+    session: SessionDep,
     staff_id: int,
 ) -> User:
     """Disable an existing staff account."""
-    staff = session.get(User, staff_id)
+    staff = await session.get(User, staff_id)
     if staff is None:
         raise ValueError("Staff account not found.")
 
@@ -56,7 +65,7 @@ async def disable_staff(
     staff.is_active = False
 
     session.add(staff)
-    session.commit()
-    session.refresh(staff)
+    await session.commit()
+    await session.refresh(staff)
 
     return staff

@@ -1,3 +1,8 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+
 from app.core.security import create_access_token
 from app.db.session import SessionDep
 from app.domains.auth.schemas import (
@@ -9,7 +14,6 @@ from app.domains.auth.service import (
     authenticate_user,
     register_user,
 )
-from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter(
     prefix="/auth",
@@ -17,13 +21,13 @@ router = APIRouter(
 )
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(
+async def register(
     data: RegisterRequest,
     session: SessionDep,
 ) -> UserResponse:
     """Register a new guest user."""
     try:
-        user = register_user(
+         user = await register_user(
             session=session,
             data=data,
         )
@@ -40,16 +44,15 @@ def register(
     )
 
 @router.post("/login", response_model=LoginResponse)
-def login(
-    email: str,
-    password: str,
+async def login(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
 ) -> LoginResponse:
     """Authenticate a user and return a JWT access token."""
-    user = authenticate_user(
+    user = await authenticate_user(
         session=session,
-        email=email,
-        password=password,
+        email=form_data.username,
+        password=form_data.password,
     )
     if user is None:
         raise HTTPException(

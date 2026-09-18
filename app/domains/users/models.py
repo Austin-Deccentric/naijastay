@@ -1,5 +1,11 @@
 from enum import Enum
-from sqlmodel import Field, Relationship, SQLModel
+
+# from typing import TYPE_CHECKING
+from sqlmodel import Field, SQLModel
+
+# if TYPE_CHECKING:
+#     from app.domains.bookings.models import Booking
+
 
 class UserRole(str, Enum):
     GUEST = "guest"
@@ -15,4 +21,4 @@ class User(SQLModel, table=True):
     role: UserRole = Field(default=UserRole.GUEST, nullable=False)
     is_active: bool = Field(default=True, nullable=False)
     # One user can have many bookings
-  
+    # bookings: list[Booking] = Relationship(back_populates="guest")

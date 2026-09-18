@@ -5,8 +5,9 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 from app.core.config import settings
-from app.domains.bookings import schema as booking_schema  # noqa: F401
-from app.domains.rooms import schema as room_schema  # noqa: F401
+from app.domains.bookings import models as booking_schema  # noqa: F401
+from app.domains.rooms import models as room_schema  # noqa: F401
+from app.domains.users import models as user_schema  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

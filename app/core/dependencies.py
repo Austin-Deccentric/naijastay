@@ -43,9 +43,10 @@ async def get_current_user(
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
-    user = session.exec(
+    result = await session.exec(
         select(User).where(User.id == user_id_int)
-    ).first()
+    )
+    user = result.first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
