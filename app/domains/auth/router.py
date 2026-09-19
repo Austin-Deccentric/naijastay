@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
+from app.core.rate_limit import limiter
 from app.core.security import create_access_token
 from app.db.session import SessionDep
 from app.domains.auth.schemas import (
@@ -20,14 +21,16 @@ router = APIRouter(
     tags=["Authentication"],
 )
 
+@limiter.limit("10/hour")
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
+    request: Request,
     data: RegisterRequest,
     session: SessionDep,
 ) -> UserResponse:
     """Register a new guest user."""
     try:
-         user = await register_user(
+        user = await register_user(
             session=session,
             data=data,
         )
@@ -43,8 +46,11 @@ async def register(
         is_active=user.is_active,
     )
 
+
+@limiter.limit("5/minute")
 @router.post("/login", response_model=LoginResponse)
 async def login(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
 ) -> LoginResponse:
