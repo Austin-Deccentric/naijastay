@@ -1,14 +1,11 @@
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from typing import Annotated
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import Depends, FastAPI
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.domains.bookings.sweeps import delete_expired_holds
 
 DATABASE_URL = settings.database_url
 
@@ -35,24 +32,4 @@ async def get_session() -> AsyncGenerator[AsyncSession]:
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(
-        delete_expired_holds,
-        "interval",
-        seconds=60,
-        id="expire_holds",
-        replace_existing=True,
-        max_instances=1,      # never run two copies at once
-        misfire_grace_time=30,  # if late by >30s, skip instead of piling up
-    )
-    scheduler.start()
-    
-    yield
 
-    scheduler.shutdown()
-
-    print("Disposing engine...")
-    await engine.dispose()
-    print("Engine disposed.")
