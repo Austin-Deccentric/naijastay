@@ -3,7 +3,7 @@ from datetime import date
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.domains.rooms.models import Room, RoomNights, RoomTypes
+from app.domains.rooms.models import Room, RoomNight, RoomType
 from app.domains.rooms.schema import RoomTypeUpdate
 
 
@@ -30,17 +30,17 @@ async def get_rooms(session: AsyncSession) -> list[Room]:
 async def nights_taken(session: AsyncSession, room_id: int, check_in: date, check_out: date) -> list[date]:
     """Confirmed-occupied nights for a room in [check_in, check_out)."""
     result = await session.exec(
-        select(RoomNights.night_date).where(
-            RoomNights.room_id == room_id,
-            RoomNights.night_date >= check_in,
-            RoomNights.night_date < check_out,   # checkout day is not occupied
+        select(RoomNight.night_date).where(
+            RoomNight.room_id == room_id,
+            RoomNight.night_date >= check_in,
+            RoomNight.night_date < check_out,   # checkout day is not occupied
         )
     )
     return list(result.all())
 
-async def _get_room_type(session: AsyncSession, name: str) -> RoomTypes:
+async def _get_room_type(session: AsyncSession, name: str) -> RoomType:
     result = await session.exec(
-        select(RoomTypes).where(RoomTypes.name == name)
+        select(RoomType).where(RoomType.name == name)
     )
     room_type = result.first()
     if room_type is None:
@@ -50,7 +50,7 @@ async def _get_room_type(session: AsyncSession, name: str) -> RoomTypes:
 
 async def update_room_type(
     session: AsyncSession, name: str, data: RoomTypeUpdate
-) -> RoomTypes:
+) -> RoomType:
     room_type = await _get_room_type(session, name)
     patch = data.model_dump(exclude_unset=True)
     room_type.sqlmodel_update(patch)

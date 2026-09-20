@@ -4,8 +4,9 @@ from enum import Enum
 from sqlmodel import DateTime, Field, SQLModel, text
 
 
-class Holds(SQLModel, table=True):
-
+class Hold(SQLModel, table=True):
+    __tablename__ = "holds"
+    
     room_id: int = Field(primary_key=True, foreign_key="rooms.id", index=True)
     guest_email: str = Field(foreign_key="users.email")
     expires_at: datetime = Field(

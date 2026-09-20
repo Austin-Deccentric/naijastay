@@ -1,11 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from app.core.permissions import require_guest, require_guest_or_receptionist
-from app.core.rate_limit import limiter
 from app.db.session import SessionDep
-from app.domains.bookings.models import Holds
+from app.domains.bookings.models import Hold
 from app.domains.bookings.schema import BookingCreate, BookingOut
 from app.domains.bookings.service import (
     BadDates,
@@ -37,12 +36,12 @@ _ERROR_STATUS = {
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 root_router = APIRouter(tags=["Holds"])
 
-@root_router.post("/holds/{room_id}")
+@root_router.post("/holds/{room_id}", status_code=status.HTTP_201_CREATED)
 async def hold_room(
     room_id: Annotated[int, Path(gt=0)],
     session: SessionDep,
     guest:Annotated[User, Depends(require_guest)]
-) -> Holds:
+) -> Hold:
     try: 
         room = await get_room(
             room_id=room_id, 
@@ -60,7 +59,7 @@ async def hold_room(
             detail="Room is not available"
         )
 
-    registered_hold = Holds(
+    registered_hold = Hold(
         room_id=room_id,
         guest_email=guest.email,
     )
@@ -73,9 +72,7 @@ async def hold_room(
     
 
 @router.post("/", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
-@limiter.limit("10/minute")
 async def book_room(
-    request: Request,
     data: BookingCreate,
     session: SessionDep,
     client: Annotated[User, Depends(require_guest_or_receptionist)],
@@ -89,3 +86,5 @@ async def book_room(
             ),
             detail=str(exc),
         ) from exc
+
+        # TODO: bg task to send email and write activity feed
