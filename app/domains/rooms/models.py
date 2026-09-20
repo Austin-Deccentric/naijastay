@@ -8,7 +8,7 @@ class RoomState(str, Enum):
     CLEAN = "clean"
     DIRTY = "dirty"
 
-class RoomNights(SQLModel, table=True):
+class RoomNight(SQLModel, table=True):
     __tablename__ = "room_nights"
     
     room_id: int = Field(primary_key=True, foreign_key="rooms.id")
@@ -18,7 +18,7 @@ class RoomNights(SQLModel, table=True):
 
 
 
-class RoomTypes(SQLModel, table=True):
+class RoomType(SQLModel, table=True):
     __tablename__ = "room_types"
     
     name: str = Field(primary_key=True, min_length=3, max_length=128)

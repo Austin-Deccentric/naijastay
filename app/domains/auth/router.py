@@ -32,7 +32,7 @@ async def register(
     try:
         user = await register_user(
             session=session,
-            data=data,
+            data=data
         )
     except ValueError as exc:
         raise HTTPException(
