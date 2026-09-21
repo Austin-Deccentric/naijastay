@@ -1,9 +1,11 @@
 from datetime import UTC, date, datetime
 
-from app.domains.bookings.models import Booking, BookingStatus, Holds
-from app.domains.rooms.models import Room
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.domains.bookings.models import Booking, BookingStatus, Hold
+from app.domains.rooms.models import Room, RoomNight, RoomType
+from app.domains.rooms.schemas import RoomTypeUpdate
 
 
 async def search_available_rooms(
@@ -41,10 +43,10 @@ async def search_available_rooms(
             continue
 
         hold_result = await session.exec(
-            select(Holds).where(
-                Holds.room_id == room.id,
-                Holds.consumed == False,
-                Holds.expires_at > datetime.now(UTC),
+            select(Hold).where(
+                Hold.room_id == room.id,
+                Hold.consumed == False,
+                Hold.expires_at > datetime.now(UTC),
             )
         )
 
@@ -54,13 +56,6 @@ async def search_available_rooms(
         available_rooms.append(room)
 
     return available_rooms
-from datetime import date
-
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.domains.rooms.models import Room, RoomNight, RoomType
-from app.domains.rooms.schema import RoomTypeUpdate
 
 
 class RoomTypeMissing(ValueError): ...
@@ -82,7 +77,7 @@ async def get_rooms(session: AsyncSession) -> list[Room]:
     )
     return list(result.all())
 
-# rooms/service.py (append)
+
 async def nights_taken(session: AsyncSession, room_id: int, check_in: date, check_out: date) -> list[date]:
     """Confirmed-occupied nights for a room in [check_in, check_out)."""
     result = await session.exec(

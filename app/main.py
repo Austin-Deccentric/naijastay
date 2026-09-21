@@ -11,10 +11,10 @@ from app.core.error_handlers import custom_rate_limit_exceeded_handler
 from app.core.rate_limit import limiter
 from app.core.utils import lifespan
 from app.domains.auth.router import router as auth_router
-from app.domains.rooms.router import router as rooms_router
 from app.domains.bookings.router import root_router as holds_router
 from app.domains.bookings.router import router as bookings_router
 from app.domains.rooms.router import router as room_types_router
+from app.domains.rooms.router import router as rooms_router
 from app.domains.users.router import router as users_router
 
 logger = logging.getLogger("naijastay")

@@ -1,24 +1,27 @@
 from datetime import date
 from typing import Annotated
 
-from app.core.permissions import require_roles
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+
+from app.core.permissions import (
+    require_guest_or_receptionist,
+    require_manager,
+)
 from app.db.session import SessionDep
-from app.domains.rooms.schemas import AvailableRoomResponse
-from app.domains.rooms.service import search_available_rooms
-from app.domains.users.models import User, UserRole
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from app.domains.rooms.models import RoomType
+from app.domains.rooms.schemas import AvailableRoomResponse, RoomTypeOut, RoomTypeUpdate
+from app.domains.rooms.service import (
+    RoomTypeMissing,
+    search_available_rooms,
+    update_room_type,
+)
+from app.domains.users.models import User
 
 router = APIRouter(
     prefix="/rooms",
     tags=["Rooms"],
 )
 
-rooms_user_dependency = Depends(
-    require_roles(
-        UserRole.GUEST,
-        UserRole.RECEPTIONIST,
-    )
-)
 
 @router.get("/search", response_model=list[AvailableRoomResponse])
 async def search_rooms(
@@ -26,7 +29,7 @@ async def search_rooms(
     check_out: Annotated[date, Query(description="Check-out date")],
     room_type: Annotated[str, Query(description="Room type to search for")],
     session: SessionDep,
-    current_user: User = rooms_user_dependency,
+    _: Annotated[User, Depends(require_guest_or_receptionist)],
 ) -> list[AvailableRoomResponse]:
     if check_out <= check_in:
         raise HTTPException(
@@ -48,27 +51,17 @@ async def search_rooms(
         )
         for room in rooms
     ]
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Path, status
-
-from app.core.permissions import require_manager
-from app.db.session import SessionDep
-from app.domains.rooms.models import RoomTypes
-from app.domains.rooms.schema import RoomTypeOut, RoomTypeUpdate
-from app.domains.rooms.service import RoomTypeMissing, update_room_type
-from app.domains.users.models import User
-
-router = APIRouter(prefix="/room-types", tags=["Room Types"])
 
 
-@router.patch("/{name}", response_model=RoomTypeOut)
+room_types_router = APIRouter(prefix="/room-types", tags=["Room Types"])
+
+@room_types_router.patch("/{name}", response_model=RoomTypeOut)
 async def patch_room_type(
     name: Annotated[str, Path(min_length=3, max_length=128)],
     data: RoomTypeUpdate,
     session: SessionDep,
     _: Annotated[User, Depends(require_manager)],
-) -> RoomTypes:
+) -> RoomType:
     if not data.model_dump(exclude_unset=True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -1,12 +1,13 @@
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.core.dependencies import get_current_user
 from app.core.permissions import require_manager
 from app.db.session import SessionDep
 from app.domains.users.models import User
 from app.domains.users.schema import CreateStaffRequest, StaffResponse
 from app.domains.users.service import create_staff, disable_staff
-from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, PositiveFloat, model_validator
 
 
 class RoomSearchRequest(BaseModel):
@@ -9,7 +9,7 @@ class RoomSearchRequest(BaseModel):
     room_type: str
 
     @model_validator(mode="after")
-    async def validate_dates(self):
+    def validate_dates(self):
         if self.check_out <= self.check_in:
             raise ValueError("Check-out date must be after check-in date.")
 
@@ -19,3 +19,14 @@ class RoomSearchRequest(BaseModel):
 class AvailableRoomResponse(BaseModel):
     id: int
     room_type: str
+
+class RoomTypeOut(BaseModel):
+    name: str
+    base_rate: int
+    capacity: int
+
+class RoomTypeUpdate(BaseModel):
+    base_rate: PositiveFloat | None = None
+    capacity: PositiveFloat | None = None
+
+    model_config = {"extra":"forbid"}
