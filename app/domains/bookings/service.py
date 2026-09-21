@@ -2,9 +2,9 @@ from datetime import UTC, datetime
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.domains.bookings.models import Booking, BookingStatus, Holds
+from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.bookings.schema import BookingCreate
-from app.domains.rooms.models import RoomTypes
+from app.domains.rooms.models import RoomType
 from app.domains.rooms.service import get_room, nights_taken
 from app.domains.users.models import User, UserRole
 from app.domains.users.service import get_user_by_email
@@ -23,6 +23,11 @@ class GuestNotFound(BookingError): ...    # -> 404, receptionist's email unknown
 class NotAGuest(BookingError): ...        # -> 422, email belongs to staff
 class BadDates(BookingError): ...         # -> 422
 class RateMissing(BookingError): ...      # -> 500, room_type has no rate row
+
+class BookingMissing(BookingError): ...   # -> 404
+class NotProcessing(BookingError): ...    # -> 409, not payable/confirmable
+class NotYours(BookingError): ...         # -> 403, чужой booking
+class HoldGone(BookingError): ...         # -> 410, hold dead
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -60,7 +65,7 @@ async def create_booking(
         raise RoomUnavailable("Room is not available.")
 
     # Hold (stays alive — payment needs it later)
-    hold = await session.get(Holds, data.room_id)
+    hold = await session.get(Hold, data.room_id)
     if hold is None:
         raise HoldMissing("No active hold for this room.")
     if hold.guest_email.strip().lower() != guest_email:
@@ -79,7 +84,7 @@ async def create_booking(
 
 
     # Price, server-side
-    room_type = await session.get(RoomTypes, room.room_type)
+    room_type = await session.get(RoomType, room.room_type)
     if room_type is None:
         raise RateMissing("Room type has no rate configured.")
     total = room_type.base_rate * nights
