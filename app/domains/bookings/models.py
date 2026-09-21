@@ -1,7 +1,7 @@
 from datetime import UTC, date, datetime, timedelta
 from enum import Enum
 
-from sqlmodel import DateTime, Field, SQLModel, text
+from sqlmodel import Column, Computed, DateTime, Field, SQLModel, String, text
 
 
 class Hold(SQLModel, table=True):
@@ -35,6 +35,10 @@ class Booking(SQLModel, table=True):
     check_out: date
     booking_status: BookingStatus
     total_amount: float
+    ref: str | None = Field(
+        default=None,
+        sa_column=Column(String(32), Computed("'BOOK-' || booking_id", persisted=True), unique=True, index=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_type=DateTime(timezone=True),
