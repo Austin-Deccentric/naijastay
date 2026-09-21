@@ -1,13 +1,12 @@
 from datetime import UTC, datetime
 
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from app.domains.bookings.models import Booking, BookingStatus, Holds
 from app.domains.bookings.schema import BookingCreate
 from app.domains.rooms.models import RoomTypes
 from app.domains.rooms.service import get_room, nights_taken
 from app.domains.users.models import User, UserRole
 from app.domains.users.service import get_user_by_email
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class BookingError(Exception):
