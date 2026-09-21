@@ -1,7 +1,3 @@
-from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from app.core.security import (
     create_access_token,
     hash_password,
@@ -9,6 +5,9 @@ from app.core.security import (
 )
 from app.domains.auth.schemas import RegisterRequest
 from app.domains.users.models import User, UserRole
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 async def register_user(
