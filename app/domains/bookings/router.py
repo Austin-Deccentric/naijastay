@@ -33,7 +33,6 @@ _ERROR_STATUS = {
 }
 
 
-router = APIRouter(prefix="/bookings", tags=["Bookings"])
 root_router = APIRouter(tags=["Holds"])
 
 @root_router.post("/holds/{room_id}", status_code=status.HTTP_201_CREATED)
@@ -69,7 +68,8 @@ async def hold_room(
     await session.refresh(registered_hold)
     
     return registered_hold
-    
+
+router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 @router.post("/", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
 async def book_room(

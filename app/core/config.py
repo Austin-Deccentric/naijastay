@@ -1,8 +1,5 @@
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
 
 
 class Settings(BaseSettings):
@@ -14,6 +11,8 @@ class Settings(BaseSettings):
     rate_limit_login: str | None = Field(default=None)
     rate_limit_register: str | None = Field(default=None)
     cors_allowed_origins: list[str] | None = Field(default=None)
+    webhook_secret: str = Field(min_length=8)
+
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
