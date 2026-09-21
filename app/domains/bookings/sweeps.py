@@ -15,7 +15,7 @@ async def delete_expired_holds() -> int:
     async with AsyncSessionMaker() as session:
         result = await session.exec(
             select(Holds).where(
-                (Holds.expires_at <= now) | (Holds.consumed == True)  # noqa: E712
+                (Holds.expires_at <= now) | (Holds.consumed == True)  
             )
         )
         stale = result.all()

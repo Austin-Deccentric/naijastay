@@ -9,9 +9,12 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.error_handlers import custom_rate_limit_exceeded_handler
 from app.core.rate_limit import limiter
-from app.db.session import lifespan
+from app.core.utils import lifespan
 from app.domains.auth.router import router as auth_router
 from app.domains.rooms.router import router as rooms_router
+from app.domains.bookings.router import root_router as holds_router
+from app.domains.bookings.router import router as bookings_router
+from app.domains.rooms.router import router as room_types_router
 from app.domains.users.router import router as users_router
 
 logger = logging.getLogger("naijastay")
@@ -78,6 +81,9 @@ app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(rooms_router)
+app.include_router(bookings_router)
+app.include_router(holds_router)
+app.include_router(room_types_router)
 
 
 @app.get("/")

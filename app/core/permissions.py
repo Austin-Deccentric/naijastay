@@ -25,3 +25,4 @@ def require_roles(*allowed_roles: UserRole) -> Callable:
 
 require_guest = require_roles(UserRole.GUEST)
 require_manager = require_roles(UserRole.MANAGER)
+require_guest_or_receptionist = require_roles(UserRole.GUEST, UserRole.RECEPTIONIST)

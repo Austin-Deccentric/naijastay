@@ -69,3 +69,10 @@ async def disable_staff(
     await session.refresh(staff)
 
     return staff
+
+async def get_user_by_email(session: SessionDep, email: str) -> User | None:
+    """Find a user by email (case-insensitive). Returns None if missing."""
+    result = await session.exec(
+        select(User).where(User.email == email.strip().lower())
+    )
+    return result.first()
