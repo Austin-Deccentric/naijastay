@@ -8,9 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.bookings.service import (
-    BookingError,
     BookingMissing,
-    HoldGone,
     NotProcessing,
     NotYours,
 )

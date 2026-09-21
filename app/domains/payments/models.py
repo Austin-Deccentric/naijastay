@@ -12,7 +12,7 @@ class Payment(SQLModel, table=True):
     __tablename__ = "payments"
     
     id: int | None = Field(primary_key=True)
-    booking_id: int = Field(foreign_key="bookings.booking_id", unique=True)
+    booking_id: int = Field(foreign_key="bookings.booking_id", unique=True, nullable=False)
     amount: float
     method: PaymentMethod
     provider_event_id: str = Field(unique=True, max_length=64, foreign_key="processed_events.event_id")

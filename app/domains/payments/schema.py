@@ -1,13 +1,14 @@
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from pydantic.types import PositiveFloat
 
 
 class PaymentWebhookEvent(BaseModel):
     event_id: str = Field(min_length=1, max_length=64)
     type: str
     reference: str = Field(min_length=1, max_length=32)
-    amount: int = Field(gt=0)            
+    amount: PositiveFloat = Field(gt=0)            
     currency: str = "NGN"
     paid_at: datetime
 
