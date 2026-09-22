@@ -1,46 +1,85 @@
 from datetime import UTC, date, datetime
 
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.bookings.schema import BookingCreate
-from app.domains.rooms.models import RoomType
+from app.domains.rooms.models import RoomState, RoomType
 from app.domains.rooms.service import get_room, nights_taken
 from app.domains.users.models import User, UserRole
 from app.domains.users.service import get_user_by_email
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class BookingError(Exception):
     """Base for all booking failures."""
+
+
 class RoomMissing(BookingError):
     pass
+
+
 class RoomUnavailable(BookingError):
     pass
+
+
 class HoldMissing(BookingError):
     pass
+
+
 class HoldMismatch(BookingError):
     pass
+
+
 class HoldExpired(BookingError):
     pass
+
+
 class GuestNotFound(BookingError):
     pass
+
+
 class NotAGuest(BookingError):
     pass
+
+
 class BadDates(BookingError):
     pass
+
+
 class RateMissing(BookingError):
     pass
+
+
 class BookingNotFound(BookingError):
     pass
+
+
 class BookingNotConfirmed(BookingError):
     pass
+
+
 class AlreadyCheckedIn(BookingError):
     pass
+
+
 class CheckInDateMismatch(BookingError):
     pass
 
 
-async def _as_utc(value: datetime) -> datetime:
+class BookingNotCheckedIn(BookingError):
+    pass
+
+
+class AlreadyCheckedOut(BookingError):
+    pass
+
+
+class CheckOutDateMismatch(BookingError):
+    pass
+
+
+def _as_utc(value: datetime) -> datetime:
     return (
         value
         if value.tzinfo is not None
@@ -215,8 +254,71 @@ async def check_in_guest(
         )
 
     room.is_available = False
+    room.room_state = RoomState.CLEAN
 
     session.add(room)
+
+    await session.commit()
+
+    await session.refresh(booking)
+
+    return booking
+
+
+async def check_out_guest(
+    session: AsyncSession,
+    booking_id: int,
+) -> Booking:
+
+    booking = await session.get(
+        Booking,
+        booking_id,
+    )
+
+    if booking is None:
+        raise BookingNotFound(
+            "Booking not found."
+        )
+
+    if booking.booking_status != BookingStatus.CONFIRMED:
+        raise BookingNotCheckedIn(
+            "Only a confirmed booking can be checked out."
+        )
+
+    today = date.today()
+
+    if booking.check_in > today:
+        raise BookingNotCheckedIn(
+            "Guest has not checked in yet."
+        )
+
+    if booking.check_out != today:
+        raise CheckOutDateMismatch(
+            "Guest can only be checked out on the booking check-out date."
+        )
+
+    try:
+        room = await get_room(
+            room_id=booking.room_id,
+            session=session,
+        )
+    except ValueError as exc:
+        raise RoomMissing(
+            "Room assigned to this booking was not found."
+        ) from exc
+
+    if room.is_available:
+        raise AlreadyCheckedOut(
+            "Guest has already been checked out."
+        )
+
+    room.is_available = False
+    room.room_state = RoomState.DIRTY
+
+    booking.booking_status = BookingStatus.CANCELLED
+
+    session.add(room)
+    session.add(booking)
 
     await session.commit()
 

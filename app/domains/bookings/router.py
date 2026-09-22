@@ -98,6 +98,7 @@ async def hold_room(room_id: Annotated[int, Path(gt=0)],
 
     return registered_hold
 
+router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 @router.post(
     "/",
