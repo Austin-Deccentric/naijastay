@@ -14,41 +14,22 @@ from app.domains.users.service import get_user_by_email
 class BookingError(Exception):
     """Base for all booking failures."""
 
-
-class RoomMissing(BookingError):
-    pass
-
-
-class RoomUnavailable(BookingError):
-    pass
-
-
-class HoldMissing(BookingError):
-    pass
+class RoomMissing(BookingError): ...
+class RoomUnavailable(BookingError): ...
+class HoldMissing(BookingError): ...      # -> 409, no active hold
+class HoldMismatch(BookingError): ...     # -> 403, hold belongs to someone else
+class HoldExpired(BookingError): ...      # -> 410, hold gone (deleted first)
+class GuestNotFound(BookingError): ...    # -> 404, receptionist's email unknown
+class NotAGuest(BookingError): ...        # -> 422, email belongs to staff
+class BadDates(BookingError): ...         # -> 422
+class RateMissing(BookingError): ...      # -> 500, room_type has no rate row
 
 
-class HoldMismatch(BookingError):
-    pass
+class BookingMissing(BookingError): ...   # -> 404
+class NotProcessing(BookingError): ...    # -> 409, not payable/confirmable
+class NotYours(BookingError): ...         # -> 403, чужой booking
+class HoldGone(BookingError): ...     
 
-
-class HoldExpired(BookingError):
-    pass
-
-
-class GuestNotFound(BookingError):
-    pass
-
-
-class NotAGuest(BookingError):
-    pass
-
-
-class BadDates(BookingError):
-    pass
-
-
-class RateMissing(BookingError):
-    pass
 
 
 class BookingNotFound(BookingError):
