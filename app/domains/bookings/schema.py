@@ -22,5 +22,22 @@ class BookingCreate(BaseModel):
 class BookingOut(BookingCreate):
     booking_id: int
     total_amount: float
-    ref: str
+    
+class CheckInOut(BaseModel):
+    booking_id: int
+    guest_email: EmailStr
+    room_id: int
+    check_in: date
+    check_out: date
+    booking_status: str
+    room_available: bool
+    
+class CheckOutOut(BaseModel):
+    booking_id: int
+    guest_email: EmailStr
+    room_id: int
+    check_out: date
+    booking_status: str
+    room_available: bool
+    room_state: str
     

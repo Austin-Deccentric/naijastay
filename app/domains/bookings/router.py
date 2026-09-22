@@ -2,24 +2,39 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
-from app.core.permissions import require_guest, require_guest_or_receptionist
+from app.core.permissions import (
+    require_guest,
+    require_guest_or_receptionist,
+    require_receptionist,
+)
 from app.db.session import SessionDep
 from app.domains.bookings.models import Hold
-from app.domains.bookings.schema import BookingCreate, BookingOut
+from app.domains.bookings.schema import (
+    BookingCreate,
+    BookingOut,
+    CheckInOut,
+)
 from app.domains.bookings.service import (
+    AlreadyCheckedIn,
     BadDates,
     BookingError,
+    BookingNotConfirmed,
+    BookingNotFound,
+    CheckInDateMismatch,
     GuestNotFound,
     HoldExpired,
     HoldMismatch,
     HoldMissing,
     NotAGuest,
+    RateMissing,
     RoomMissing,
     RoomUnavailable,
+    check_in_guest,
     create_booking,
 )
 from app.domains.rooms.service import get_room
 from app.domains.users.models import User
+
 
 _ERROR_STATUS = {
     RoomMissing: status.HTTP_404_NOT_FOUND,
@@ -30,32 +45,44 @@ _ERROR_STATUS = {
     HoldExpired: status.HTTP_410_GONE,
     BadDates: status.HTTP_422_UNPROCESSABLE_ENTITY,
     NotAGuest: status.HTTP_422_UNPROCESSABLE_ENTITY,
+    RateMissing: status.HTTP_422_UNPROCESSABLE_ENTITY,
 }
 
 
-root_router = APIRouter(tags=["Holds"])
+router = APIRouter(
+    prefix="/bookings",
+    tags=["Bookings"],
+)
+
+root_router = APIRouter(
+    tags=["Holds"],
+)
 
 @root_router.post("/holds/{room_id}", status_code=status.HTTP_201_CREATED)
-async def hold_room(
-    room_id: Annotated[int, Path(gt=0)],
+async def hold_room(room_id: Annotated[int, Path(gt=0)],
     session: SessionDep,
-    guest:Annotated[User, Depends(require_guest)]
+    guest: Annotated[
+        User,
+        Depends(require_guest),
+    ],
 ) -> Hold:
-    try: 
+
+    try:
         room = await get_room(
-            room_id=room_id, 
-            session=session
+            room_id=room_id,
+            session=session,
         )
-    except ValueError as exec:
+
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exec)
-        ) from exec
+            detail=str(exc),
+        ) from exc
 
     if not room.is_available:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Room is not available"
+            detail="Room is not available",
         )
 
     registered_hold = Hold(
@@ -64,27 +91,103 @@ async def hold_room(
     )
 
     session.add(registered_hold)
+
     await session.commit()
+
     await session.refresh(registered_hold)
-    
+
     return registered_hold
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
-@router.post("/", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=BookingOut,
+    status_code=status.HTTP_201_CREATED,
+)
 async def book_room(
     data: BookingCreate,
     session: SessionDep,
-    client: Annotated[User, Depends(require_guest_or_receptionist)],
+    client: Annotated[
+        User,
+        Depends(require_guest_or_receptionist),
+    ],
 ):
     try:
-        return await create_booking(session=session, data=data, client=client)
+        return await create_booking(
+            session=session,
+            data=data,
+            client=client,
+        )
+
     except BookingError as exc:
         raise HTTPException(
             status_code=_ERROR_STATUS.get(
-                type(exc), status.HTTP_500_INTERNAL_SERVER_ERROR
+                type(exc),
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
             ),
             detail=str(exc),
         ) from exc
 
-        # TODO: bg task to send email and write activity feed
+
+@router.post(
+    "/{booking_id}/check-in",
+    response_model=CheckInOut,
+)
+async def check_in(
+    booking_id: Annotated[
+        int,
+        Path(gt=0),
+    ],
+    session: SessionDep,
+    _: Annotated[
+        User,
+        Depends(require_receptionist),
+    ],
+) -> CheckInOut:
+
+    try:
+        booking = await check_in_guest(
+            session=session,
+            booking_id=booking_id,
+        )
+
+    except BookingNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    except BookingNotConfirmed as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    except CheckInDateMismatch as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    except AlreadyCheckedIn as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    except RoomMissing as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    return CheckInOut(
+        booking_id=booking.booking_id,
+        guest_email=booking.guest_email,
+        room_id=booking.room_id,
+        check_in=booking.check_in,
+        check_out=booking.check_out,
+        booking_status=booking.booking_status.value,
+        room_available=False,
+    )

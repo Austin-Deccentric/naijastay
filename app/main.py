@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 
@@ -14,7 +15,18 @@ from app.domains.bookings.router import root_router as holds_router
 from app.domains.bookings.router import router as bookings_router
 from app.domains.payments.router import router as payments_router
 from app.domains.rooms.router import router as room_types_router
+from app.domains.rooms.router import router as rooms_router
 from app.domains.users.router import router as users_router
+
+logger = logging.getLogger("naijastay")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    logger.addHandler(handler)
+logger.propagate = False
 
 app = FastAPI(
     title="NaijaStay API",
@@ -23,7 +35,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.state.limiter = limiter   
+app.state.limiter = limiter
 
 
 app.add_middleware(
@@ -34,26 +46,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(SlowAPIMiddleware)
+
+
 @app.middleware("http")
 async def add_request_id_and_timing(request: Request, call_next):
-    #Generate or catch the ID
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     request.state.request_id = request_id
     start_time = time.perf_counter()
-    
-    response = await call_next(request)
-    response_time = time.perf_counter() - start_time
-    
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        elapsed = time.perf_counter() - start_time
+        logger.exception("request failed method=%s path=%s request_id=%s duration=%.4fs", request.method, request.url.path, request_id, elapsed)
+        raise
+
+    elapsed = time.perf_counter() - start_time
     response.headers["X-Request-ID"] = request_id
-    response.headers["X-Response-Time"] = f"{response_time:.4f}s"
-    
+    response.headers["X-Response-Time"] = f"{elapsed:.4f}s"
+
+    logger.info(
+        "request completed method=%s path=%s status=%s request_id=%s duration=%.4fs",
+        request.method,
+        request.url.path,
+        response.status_code,
+        request_id,
+        elapsed,
+    )
     return response
 
-app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler) #type: ignore
+
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)  # type: ignore
 
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(rooms_router)
 app.include_router(bookings_router)
 app.include_router(holds_router)
 app.include_router(room_types_router)

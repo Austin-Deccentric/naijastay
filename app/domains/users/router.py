@@ -6,24 +6,14 @@ from app.core.dependencies import get_current_user
 from app.core.permissions import require_manager
 from app.db.session import SessionDep
 from app.domains.users.models import User
-from app.domains.users.schema import (
-    CreateStaffRequest,
-    StaffResponse,
-)
-from app.domains.users.service import (
-    create_staff,
-    disable_staff,
-)
+from app.domains.users.schema import CreateStaffRequest, StaffResponse
+from app.domains.users.service import create_staff, disable_staff
 
-router = APIRouter(
-    prefix="/users",
-    tags=["Users"],
-)
+router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/me")
 async def get_my_profile(
-    current_user: Annotated[User, Depends(get_current_user)],
-):
+    current_user: Annotated[User, Depends(get_current_user)]):
     """Return the currently authenticated user's profile."""
     return {
         "id": current_user.id,
@@ -36,8 +26,7 @@ async def get_my_profile(
 async def create_staff_account(
     data: CreateStaffRequest,
     session: SessionDep,
-    current_user: Annotated[User, Depends(require_manager)],
-) -> StaffResponse:
+    current_user: Annotated[User, Depends(require_manager)],) -> StaffResponse:
     """Allow a manager to create a staff account."""
     try:
         staff = await create_staff(
