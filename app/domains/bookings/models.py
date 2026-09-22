@@ -3,6 +3,7 @@ from enum import Enum
 
 from sqlmodel import Column, Computed, DateTime, Field, SQLModel, String, text
 
+HOLD_TIME = 10
 
 class Hold(SQLModel, table=True):
     __tablename__ = "holds"
@@ -10,7 +11,7 @@ class Hold(SQLModel, table=True):
     room_id: int = Field(primary_key=True, foreign_key="rooms.id", index=True)
     guest_email: str = Field(foreign_key="users.email")
     expires_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC) + timedelta(minutes=10), 
+        default_factory=lambda: datetime.now(UTC) + timedelta(minutes=HOLD_TIME), 
         sa_type=DateTime(timezone=True),
         sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")},
         index=True

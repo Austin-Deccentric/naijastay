@@ -32,3 +32,4 @@ class Room(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     room_type: str = Field(foreign_key="room_types.name")
     is_available: bool = Field(default=True)
+    room_state: RoomState = Field(default=RoomState.CLEAN)
