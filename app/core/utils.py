@@ -5,10 +5,12 @@ from fastapi import FastAPI
 
 from app.db.session import engine
 from app.domains.bookings.sweeps import cancel_stale_processing, delete_expired_holds
+from app.integrations.redis import close_redis, init_redis
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_redis(app)
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         delete_expired_holds,
@@ -33,6 +35,7 @@ async def lifespan(app: FastAPI):
     yield
 
     scheduler.shutdown()
+    await close_redis(app)
 
     print("Disposing engine...")
     await engine.dispose()
