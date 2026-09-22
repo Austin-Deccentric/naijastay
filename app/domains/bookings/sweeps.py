@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from sqlmodel import select
 
 from app.db.session import AsyncSessionMaker
-from app.domains.bookings.models import Holds
+from app.domains.bookings.models import Hold
 
 logger = logging.getLogger("naijastay")
 
@@ -14,8 +14,8 @@ async def delete_expired_holds() -> int:
     now = datetime.now(UTC)
     async with AsyncSessionMaker() as session:
         result = await session.exec(
-            select(Holds).where(
-                (Holds.expires_at <= now) | (Holds.consumed == True)  
+            select(Hold).where(
+                (Hold.expires_at <= now) | (Hold.consumed == True)  
             )
         )
         stale = result.all()

@@ -5,7 +5,6 @@ import hmac
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from venv import logger
 
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -142,12 +141,15 @@ async def process_payment_event(session: AsyncSession, event: PaymentWebhookEven
                               booking_id=booking.booking_id))
         night += timedelta(days=1)
         
-    session.add(Payment(booking_id=booking.booking_id, amount=event.amount,
-                        currency=event.currency, recorded_by=None, 
-                        provider_event_id=event.event_id,
-                        paid_at=event.paid_at))
+    # The event row must exist before the payment row: payments.provider_event_id
+    # references processed_events.event_id, so flush the parent first.
     session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
                                reference=event.reference))
+    await session.flush()
+    session.add(Payment(booking_id=booking.booking_id, amount=event.amount,
+                        currency=event.currency, recorded_by=None,
+                        provider_event_id=event.event_id,
+                        paid_at=event.paid_at))
 
     try:
         await session.commit()

@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from pydantic import ValidationError
 
 from app.core.permissions import require_guest
@@ -41,7 +41,7 @@ _ERROR_STATUS = {
 @router.post("/pay/{booking_id}", response_model=PayOut)
 @limiter.limit("5/minute")
 async def pay_for_booking(
-    _: Request,                                    
+    request: Request,                                    
     booking_id: Annotated[int, Path(gt=0)],
     session: SessionDep,
     guest: Annotated[User, Depends(require_guest)],      # guests only, per spec

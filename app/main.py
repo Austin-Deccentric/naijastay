@@ -14,6 +14,7 @@ from app.domains.auth.router import router as auth_router
 from app.domains.bookings.router import root_router as holds_router
 from app.domains.bookings.router import router as bookings_router
 from app.domains.payments.router import router as payments_router
+from app.domains.payments.router import root_router as payments_webhook_router
 from app.domains.rooms.router import router as room_types_router
 from app.domains.rooms.router import router as rooms_router
 from app.domains.users.router import router as users_router
@@ -86,6 +87,7 @@ app.include_router(bookings_router)
 app.include_router(holds_router)
 app.include_router(room_types_router)
 app.include_router(payments_router)
+app.include_router(payments_webhook_router)
 
 
 
