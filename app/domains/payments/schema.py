@@ -17,4 +17,12 @@ class PayOut(BaseModel):
     booking_id: int
     reference: str
     amount: float
-    booking_status: str        
+    booking_status: str
+    method: str = "online"
+
+
+class OfflinePaymentIn(BaseModel):
+    """Body for recording a staff-collected payment. Exact amount only."""
+
+    amount: PositiveFloat = Field(gt=0)
+    currency: str = "NGN"

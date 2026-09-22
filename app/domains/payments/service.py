@@ -18,8 +18,9 @@ from app.domains.bookings.service import (
     HoldGone,
     NotProcessing,
     NotYours,
+    RoomUnavailable,
 )
-from app.domains.payments.models import Payment, ProcessedEvent
+from app.domains.payments.models import Payment, PaymentMethod, ProcessedEvent
 from app.domains.payments.schema import PaymentWebhookEvent, PayOut
 from app.domains.rooms.models import Room, RoomNight
 from app.domains.users.models import User
@@ -73,6 +74,64 @@ def verify_signature(raw_body: bytes, signature: str) -> None:
     expected = hmac.new(settings.webhook_secret.encode(), raw_body, hashlib.sha256).hexdigest()
     if not signature or not hmac.compare_digest(expected, signature):
         raise WebhookAuthError("Invalid webhook signature.")
+
+def _add_room_nights(session: AsyncSession, booking: Booking) -> None:
+    """Stage one RoomNight per night in [check_in, check_out). Shared by
+    the online (webhook) and offline confirm paths."""
+    night = booking.check_in
+    while night < booking.check_out:
+        session.add(RoomNight(room_id=booking.room_id, night_date=night,
+                              booking_id=booking.booking_id))
+        night += timedelta(days=1)
+
+
+async def record_offline_payment(
+    session: AsyncSession,
+    booking_id: int,
+    staff: User,
+    amount: float,
+    currency: str = "NGN",
+) -> Payment:
+    """Record a staff-collected (cash/bank transfer) payment and confirm.
+
+    Receptionist-only (enforced at the router). No hold is required, so
+    walk-ins are confirmable. Exact amount only. Writes no ProcessedEvent
+    row — those remain provider-only.
+    """
+    booking = await session.get(Booking, booking_id)
+    if booking is None:
+        raise BookingMissing("Booking not found.")
+    if booking.booking_status != BookingStatus.PROCESSING:
+        raise NotProcessing("Only processing bookings can be paid for.")
+    if currency != "NGN" or abs(amount - booking.total_amount) > 0.01:
+        raise AmountMismatch("Paid amount does not match booking total.")
+
+    room = await session.get(Room, booking.room_id)
+    if room is None:
+        raise RoomUnavailable("Room for booking no longer exists.")
+
+    booking.booking_status = BookingStatus.CONFIRMED
+    room.is_available = False
+    _add_room_nights(session, booking)
+    payment = Payment(booking_id=booking.booking_id, amount=amount,
+                      currency=currency, method=PaymentMethod.OFFLINE,
+                      provider_event_id=None, recorded_by=staff.id)
+    session.add(payment)
+    try:
+        await session.commit()
+        logger.info("Recorded offline %s for booking %s by %s",
+                    amount, booking.booking_id, staff.email)
+    except IntegrityError:
+        await session.rollback()
+        # Either a double-pay race (payments.booking_id unique) or a night
+        # clash with another stay (room_nights PK). Offline writes no event
+        # row, so unlike the webhook path there is no duplicate to return.
+        raise RoomUnavailable(
+            "Room is no longer available for these dates."
+        )
+    await session.refresh(payment)
+    return payment
+
 
 # Main payment and Booking confirmation logic flow
 async def process_payment_event(session: AsyncSession, event: PaymentWebhookEvent) -> str:
@@ -133,14 +192,8 @@ async def process_payment_event(session: AsyncSession, event: PaymentWebhookEven
     booking.booking_status = BookingStatus.CONFIRMED
     room.is_available = False
     await session.delete(hold)
-    night = booking.check_in
-    
-    #update roomnight table
-    while night < booking.check_out:
-        session.add(RoomNight(room_id=booking.room_id, night_date=night,
-                              booking_id=booking.booking_id))
-        night += timedelta(days=1)
-        
+    _add_room_nights(session, booking)
+
     # The event row must exist before the payment row: payments.provider_event_id
     # references processed_events.event_id, so flush the parent first.
     session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
