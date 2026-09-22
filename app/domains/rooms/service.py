@@ -13,50 +13,37 @@ async def search_available_rooms(
     check_out: date,
     room_type: str,
 ) -> list[Room]:
-    rooms_result = await session.exec(
-        select(Room).where(
-            Room.room_type == room_type,
-            Room.is_available == True,
-        )
+    conflicting_bookings = select(Booking.room_id).where(
+        Booking.booking_status != BookingStatus.CANCELLED,
+        Booking.check_in < check_out,
+        Booking.check_out > check_in,
     )
-    rooms = rooms_result.all()
 
-    if not rooms:
-        return []
-    available_rooms = []
+    active_holds = select(Hold.room_id).where(
+        Hold.consumed == False,
+        Hold.expires_at > datetime.now(UTC),
+    )
 
-    for room in rooms:
-        booking_result = await session.exec(
-            select(Booking).where(
-                Booking.room_id == room.id,
-                Booking.booking_status != BookingStatus.CANCELLED,
-                Booking.check_in < check_out,
-                Booking.check_out > check_in,
-            )
-        )
+    query = select(Room).where(
+        Room.room_type == room_type,
+        Room.is_available == True,
+        Room.id.not_in(conflicting_bookings),
+        Room.id.not_in(active_holds),
+    )
 
-        if booking_result.first() is not None:
-            continue
+    result = await session.exec(query)
 
-        hold_result = await session.exec(
-            select(Hold).where(
-                Hold.room_id == room.id,
-                Hold.consumed == False,
-                Hold.expires_at > datetime.now(UTC),
-            )
-        )
-
-        if hold_result.first() is not None:
-            continue
-
-        available_rooms.append(room)
-
-    return available_rooms
+    return list(result.all())
 
 
-async def get_room(room_id: int, session: AsyncSession) -> Room:
+async def get_room(
+    room_id: int,
+    session: AsyncSession,
+) -> Room:
     result = await session.exec(
-        select(Room).where(Room.id == room_id)
+        select(Room).where(
+            Room.id == room_id,
+        )
     )
 
     room = result.first()
@@ -67,46 +54,50 @@ async def get_room(room_id: int, session: AsyncSession) -> Room:
     return room
 
 
-async def get_rooms(session: AsyncSession) -> list[Room]:
+async def get_rooms(
+    session: AsyncSession,
+) -> list[Room]:
     result = await session.exec(
-        select(Room)
+        select(Room),
     )
 
     return list(result.all())
 
+
 async def get_available_rooms(
     session: AsyncSession,
-    room_date: date,
+    room_date: date | None = None,
     room_type: str | None = None,
 ) -> list[Room]:
+    if room_date is None:
+        room_date = date.today()
+
+    conflicting_bookings = select(Booking.room_id).where(
+        Booking.booking_status != BookingStatus.CANCELLED,
+        Booking.check_in <= room_date,
+        Booking.check_out > room_date,
+    )
+    
+    active_holds = select(Hold.room_id).where(
+            Hold.consumed == False,
+            Hold.expires_at > datetime.now(UTC),
+    )
+    
+
     query = select(Room).where(
         Room.is_available == True,
+        Room.id.not_in(conflicting_bookings),
+        Room.id.not_in(active_holds),
     )
 
     if room_type:
-        query = query.where(Room.room_type == room_type)
-
-    rooms_result = await session.exec(query)
-    rooms = rooms_result.all()
-
-    available_rooms = []
-
-    for room in rooms:
-        booking_result = await session.exec(
-            select(Booking).where(
-                Booking.room_id == room.id,
-                Booking.booking_status != BookingStatus.CANCELLED,
-                Booking.check_in <= room_date,
-                Booking.check_out > room_date,
-            )
+        query = query.where(
+            Room.room_type == room_type,
         )
 
-        if booking_result.first() is not None:
-            continue
+    result = await session.exec(query)
 
-        available_rooms.append(room)
-
-    return available_rooms
+    return list(result.all())
 
 
 async def nights_taken(
@@ -115,7 +106,7 @@ async def nights_taken(
     check_in: date,
     check_out: date,
 ) -> list[date]:
-    """Confirmed-occupied nights for a room in [check_in, check_out)."""
+    """Return occupied nights for a room within [check_in, check_out)."""
 
     result = await session.exec(
         select(RoomNight.night_date).where(
@@ -129,7 +120,7 @@ async def nights_taken(
 
 
 class RoomTypeMissing(ValueError):
-    ...
+    pass
 
 
 async def _get_room_type(
@@ -137,13 +128,17 @@ async def _get_room_type(
     name: str,
 ) -> RoomType:
     result = await session.exec(
-        select(RoomType).where(RoomType.name == name)
+        select(RoomType).where(
+            RoomType.name == name,
+        )
     )
 
     room_type = result.first()
 
     if room_type is None:
-        raise RoomTypeMissing(f"Room type '{name}' not found")
+        raise RoomTypeMissing(
+            f"Room type '{name}' not found"
+        )
 
     return room_type
 
@@ -153,14 +148,21 @@ async def update_room_type(
     name: str,
     data: RoomTypeUpdate,
 ) -> RoomType:
-    room_type = await _get_room_type(session, name)
+    room_type = await _get_room_type(
+        session=session,
+        name=name,
+    )
 
-    patch = data.model_dump(exclude_unset=True)
+    patch = data.model_dump(
+        exclude_unset=True,
+    )
+
     room_type.sqlmodel_update(patch)
 
     session.add(room_type)
 
     await session.commit()
+
     await session.refresh(room_type)
 
     return room_type

@@ -23,13 +23,24 @@ from app.domains.rooms.service import (
 from app.domains.users.models import User
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-router = APIRouter(prefix="/rooms", tags=["Rooms"])
+router = APIRouter(
+    prefix="/rooms",
+    tags=["Rooms"],
+)
 
-@router.get("/", response_model=list[RoomResponse])
+
+@router.get(
+    "/",
+    response_model=list[RoomResponse],
+)
 async def get_all_rooms(
     session: SessionDep,
-    _: Annotated[User, Depends(require_guest_or_receptionist)],
+    _: Annotated[
+        User,
+        Depends(require_guest_or_receptionist),
+    ],
 ) -> list[RoomResponse]:
+
     rooms = await get_rooms(session)
 
     return [
@@ -41,24 +52,24 @@ async def get_all_rooms(
         for room in rooms
     ]
 
-@router.get("/available", response_model=list[RoomResponse])
+
+@router.get(
+    "/available",
+    response_model=list[RoomResponse],
+)
 async def get_available_rooms_for_day(
-    room_date: Annotated[
-        date,
-        Query(description="Date to check room availability"),
-    ],
-    room_type: Annotated[
-        str | None,
-        Query(description="Optional room type"),
-    ],
-    session: SessionDep,
-    _: Annotated[User, Depends(require_guest_or_receptionist)],
+    room_date: Annotated[date | None, Query(description="Date to check room availability. Defaults to today.")] = None,
+    room_type: Annotated[str | None, Query(description="Optional room type")] = None,
+    session: SessionDep = None,
+    _: Annotated[User, Depends(require_guest_or_receptionist)] = None,
 ) -> list[RoomResponse]:
+
     rooms = await get_available_rooms(
         session=session,
         room_date=room_date,
         room_type=room_type,
     )
+
     return [
         RoomResponse(
             id=room.id,
@@ -68,25 +79,31 @@ async def get_available_rooms_for_day(
         for room in rooms
     ]
 
+
 @router.get("/search", response_model=list[AvailableRoomResponse])
-async def search_rooms(
-    check_in: Annotated[date, Query(description="Check-in date")],
+async def search_rooms(check_in: Annotated[date, Query(description="Check-in date")],
     check_out: Annotated[date, Query(description="Check-out date")],
-    room_type: Annotated[str, Query(description="Room type to search for")],
+    room_type: Annotated[str, Query(description="Room type to search for"),],
     session: SessionDep,
-    _: Annotated[User, Depends(require_guest_or_receptionist)],
+    _: Annotated[
+        User,
+        Depends(require_guest_or_receptionist),
+    ],
 ) -> list[AvailableRoomResponse]:
+
     if check_out <= check_in:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Check-out date must be after check-in date.",
         )
+
     rooms = await search_available_rooms(
         session=session,
         check_in=check_in,
         check_out=check_out,
         room_type=room_type,
     )
+
     return [
         AvailableRoomResponse(
             id=room.id,
@@ -95,26 +112,34 @@ async def search_rooms(
         for room in rooms
     ]
 
-room_types_router = APIRouter(prefix="/room-types", tags=["Room Types"])
+
+room_types_router = APIRouter(prefix="/room-types",tags=["Room Types"])
+
 
 @room_types_router.patch("/{name}", response_model=RoomTypeOut)
-async def patch_room_type(
-    name: Annotated[str, Path(min_length=3, max_length=128)],
+async def patch_room_type(name: Annotated[str, Path(min_length=3, max_length=128),
+    ],
     data: RoomTypeUpdate,
     session: SessionDep,
-    _: Annotated[User, Depends(require_manager)],
+    _: Annotated[
+        User,
+        Depends(require_manager),
+    ],
 ) -> RoomType:
+
     if not data.model_dump(exclude_unset=True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Provide at least one of: base_rate, capacity",
         )
+
     try:
         return await update_room_type(
             session=session,
             name=name,
             data=data,
         )
+
     except RoomTypeMissing as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
