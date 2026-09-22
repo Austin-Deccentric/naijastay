@@ -11,6 +11,7 @@ from app.core.rate_limit import limiter
 from app.db.session import lifespan
 from app.domains.auth.router import router as auth_router
 from app.domains.users.router import router as users_router
+from app.domains.reports.router import router as reports_router
 
 app = FastAPI(
     title="NaijaStay API",
@@ -50,6 +51,7 @@ app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(reports_router)
 
 @app.get("/")
 def read_root():

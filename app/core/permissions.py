@@ -6,10 +6,10 @@ from app.core.dependencies import get_current_user
 from app.domains.users.models import User, UserRole
 
 
-def require_roles(*allowed_roles: UserRole) -> Callable:
+async def require_roles(*allowed_roles: UserRole) -> Callable:
     """Create a dependency that restricts access to specific user roles."""
 
-    def role_checker(
+    async def role_checker(
         current_user: User = Depends(get_current_user),
     ) -> User:
         if current_user.role not in allowed_roles:
@@ -25,3 +25,7 @@ def require_roles(*allowed_roles: UserRole) -> Callable:
 
 require_guest = require_roles(UserRole.GUEST)
 require_manager = require_roles(UserRole.MANAGER)
+require_receptionist = require_roles(UserRole.RECEPTIONIST)
+require_housekeeper = require_roles(UserRole.HOUSEKEEPER)
+
+require_guest_or_receptionist = require_roles(UserRole.GUEST, UserRole.RECEPTIONIST)
