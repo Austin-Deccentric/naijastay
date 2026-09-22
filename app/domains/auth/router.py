@@ -1,8 +1,5 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordRequestForm
-
 from app.core.rate_limit import limiter
 from app.core.security import create_access_token
 from app.db.session import SessionDep
@@ -11,15 +8,11 @@ from app.domains.auth.schemas import (
     RegisterRequest,
     UserResponse,
 )
-from app.domains.auth.service import (
-    authenticate_user,
-    register_user,
-)
+from app.domains.auth.service import authenticate_user, register_user
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["Authentication"],
-)
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @limiter.limit("10/hour")
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -46,14 +39,9 @@ async def register(
         is_active=user.is_active,
     )
 
-
 @limiter.limit("5/minute")
 @router.post("/login", response_model=LoginResponse)
-async def login(
-    request: Request,
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    session: SessionDep,
-) -> LoginResponse:
+async def login(request: Request, form_data: Annotated[OAuth2PasswordRequestForm, Depends()], session: SessionDep) -> LoginResponse:
     """Authenticate a user and return a JWT access token."""
     user = await authenticate_user(
         session=session,
