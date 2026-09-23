@@ -162,6 +162,7 @@ async def check_out(
         User,
         Depends(require_receptionist),
     ],
+    request: Request,
 ) -> CheckOutOut:
     try:
         booking = await check_out_guest(
@@ -178,6 +179,8 @@ async def check_out(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except RoomMissing as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    await publish_booking_room(request, session, booking.room_id)
 
     return CheckOutOut(
         booking_id=booking.booking_id,
