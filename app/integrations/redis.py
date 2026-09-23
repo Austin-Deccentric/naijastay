@@ -27,7 +27,7 @@ async def init_redis(app: FastAPI) -> None:
 
 async def close_redis(app: FastAPI) -> None:
     """Close the shared client, if one was initialised."""
-    client = getattr(app.state, "redis", None)
+    client: aioredis.Redis | None = getattr(app.state, "redis", None)
     if client is not None:
         await client.aclose()
         app.state.redis = None

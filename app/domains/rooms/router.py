@@ -25,7 +25,8 @@ from app.domains.rooms.service import (
     search_available_rooms,
     update_room_type,
 )
-from app.domains.rooms.streaming import room_event_generator
+from app.domains.rooms.streaming import room_event_generator, unavailable_events
+from app.domains.rooms.test import aioredis
 from app.domains.users.models import User
 
 router = APIRouter(
@@ -137,10 +138,14 @@ async def patch_room_type(name: Annotated[str, Path(min_length=3, max_length=128
             detail=str(exc),
         ) from exc
 
+
 @router.get("/stream")
 @limiter.exempt  # long-lived SSE: must not count against the 10/min rate limit
 async def stream_rooms(request: Request):
-    """Live chnages only. Snapshot comes from GET /rooms (Postgres)"""
+    """Live changes only. Snapshot comes from GET /rooms (Postgres)"""
+    client: aioredis.Redis | None = getattr(request.app.state, "redis", None)
+    if client is None:
+        return EventSourceResponse(unavailable_events(), send_timeout=30)
     return EventSourceResponse(
         room_event_generator(request.app.state.redis, request), send_timeout=30
     )
