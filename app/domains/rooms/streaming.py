@@ -58,6 +58,10 @@ async def publish_booking_room(request: Request, session: AsyncSession, room_id:
         await publish_room_status(redis_client, room)
 
 
+async def unavailable_events():
+    yield {"event": "error", "data": "live updates unavailable", "retry": 500}
+    
+
 async def room_event_generator(client: aioredis.Redis, request: Request) -> AsyncIterator[dict[str, Any]]:
     """Yield ``room_status`` events until disconnect or Redis loss"""
     
