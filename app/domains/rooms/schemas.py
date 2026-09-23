@@ -16,29 +16,33 @@ class RoomSearchRequest(BaseModel):
             raise ValueError("Check-out date must be after check-in date.")
         return self
 
-
 class RoomResponse(BaseModel):
     id: int
     room_type: str
     is_available: bool
 
-
 class AvailableRoomResponse(BaseModel):
     id: int
     room_type: str
-
 
 class RoomTypeOut(BaseModel):
     name: str
     base_rate: int
     capacity: int
 
-
 class RoomTypeUpdate(BaseModel):
     base_rate: PositiveFloat | None = None
     capacity: int | None = None
 
     model_config = {"extra": "forbid"}
+
+class OccupancyReport(BaseModel):
+    report_date: date
+    total_rooms: int = Field(ge=0)
+    occupied_rooms: int = Field(ge=0)
+    available_rooms: int = Field(ge=0)
+    occupancy_percentage: float = Field(ge=0, le=100)
+
 
 class RoomDashboardRead(BaseModel):
     room_id: int = Field(validation_alias="id")
