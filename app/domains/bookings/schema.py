@@ -14,7 +14,7 @@ class BookingCreate(BaseModel):
     check_out: date
 
     @model_validator(mode="after")
-    def check_dates(self) -> BookingCreate:
+    def check_dates(self) -> "BookingCreate":
         if self.check_out <= self.check_in:
             raise ValueError("check_out must be after check_in.")
         return self

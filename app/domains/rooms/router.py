@@ -3,67 +3,61 @@ from typing import Annotated
 
 from app.core.permissions import (
     require_guest_or_receptionist,
+    require_housekeeper,
     require_manager,
 )
 from app.db.session import SessionDep
-from app.domains.rooms.models import RoomType
 from app.domains.rooms.schemas import (
     AvailableRoomResponse,
+    OccupancyReport,
     RoomResponse,
     RoomTypeOut,
     RoomTypeUpdate,
 )
 from app.domains.rooms.service import (
+    RoomNotDirty,
     RoomTypeMissing,
     get_available_rooms,
+    get_occupancy_report,
     get_rooms,
+    mark_room_clean,
     search_available_rooms,
     update_room_type,
 )
 from app.domains.users.models import User
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-router = APIRouter(
-    prefix="/rooms",
-    tags=["Rooms"],
-)
+router = APIRouter(prefix="/rooms", tags=["Rooms"])
 
-
-@router.get(
-    "/",
-    response_model=list[RoomResponse],
-)
+@router.get("/", response_model=list[RoomResponse])
 async def get_all_rooms(
+    session: SessionDep,
+    _: Annotated[User, Depends(require_guest_or_receptionist)],
+) -> list[RoomResponse]:
+    rooms = await get_rooms(session)
+
+    return [
+        RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
+        for room in rooms
+    ]
+
+
+@router.get("/available", response_model=list[RoomResponse])
+async def get_available_rooms_for_day(
     session: SessionDep,
     _: Annotated[
         User,
         Depends(require_guest_or_receptionist),
     ],
+    room_date: Annotated[date | None, Query(description="Date to check room availability. Defaults to today."),
+    ] = None,
+    room_type: Annotated[
+        str | None,
+        Query(
+            description="Optional room type",
+        ),
+    ] = None,
 ) -> list[RoomResponse]:
-
-    rooms = await get_rooms(session)
-
-    return [
-        RoomResponse(
-            id=room.id,
-            room_type=room.room_type,
-            is_available=room.is_available,
-        )
-        for room in rooms
-    ]
-
-
-@router.get(
-    "/available",
-    response_model=list[RoomResponse],
-)
-async def get_available_rooms_for_day(
-    room_date: Annotated[date | None, Query(description="Date to check room availability. Defaults to today.")] = None,
-    room_type: Annotated[str | None, Query(description="Optional room type")] = None,
-    session: SessionDep = None,
-    _: Annotated[User, Depends(require_guest_or_receptionist)] = None,
-) -> list[RoomResponse]:
-
     rooms = await get_available_rooms(
         session=session,
         room_date=room_date,
@@ -71,26 +65,27 @@ async def get_available_rooms_for_day(
     )
 
     return [
-        RoomResponse(
-            id=room.id,
-            room_type=room.room_type,
-            is_available=room.is_available,
-        )
+        RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
         for room in rooms
     ]
 
-
 @router.get("/search", response_model=list[AvailableRoomResponse])
-async def search_rooms(check_in: Annotated[date, Query(description="Check-in date")],
-    check_out: Annotated[date, Query(description="Check-out date")],
-    room_type: Annotated[str, Query(description="Room type to search for"),],
+async def search_rooms(
     session: SessionDep,
     _: Annotated[
         User,
         Depends(require_guest_or_receptionist),
     ],
+    check_in: Annotated[date, Query(description="Check-in date")],
+    check_out: Annotated[
+        date,
+        Query(description="Check-out date"),
+    ],
+    room_type: Annotated[
+        str,
+        Query(description="Room type to search for"),
+    ],
 ) -> list[AvailableRoomResponse]:
-
     if check_out <= check_in:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -112,36 +107,59 @@ async def search_rooms(check_in: Annotated[date, Query(description="Check-in dat
         for room in rooms
     ]
 
-
-room_types_router = APIRouter(prefix="/room-types",tags=["Room Types"])
-
-
-@room_types_router.patch("/{name}", response_model=RoomTypeOut)
-async def patch_room_type(name: Annotated[str, Path(min_length=3, max_length=128),
+@router.get("/occupancy", response_model=OccupancyReport)
+async def occupancy_report(
+    session: SessionDep,
+    _: Annotated[
+        User,
+        Depends(require_manager),
     ],
+    report_date: Annotated[
+        date,
+        Query(description="Date for the occupancy report"),
+    ],
+) -> OccupancyReport:
+    return await get_occupancy_report(
+        session=session,
+        report_date=report_date,
+    )
+
+@router.patch("/{room_id}/clean", response_model=RoomResponse)
+async def mark_clean(
+    room_id: Annotated[
+        int,
+        Path(gt=0),
+    ],
+    session: SessionDep,
+    _: Annotated[
+        User,
+        Depends(require_housekeeper),
+    ],
+) -> RoomResponse:
+    try:
+        room = await mark_room_clean(room_id=room_id, session=session,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except RoomNotDirty as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    return RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
+
+@router.patch("/room-types/{name}", response_model=RoomTypeOut)
+async def patch_room_type(
+    name: Annotated[str,Path(min_length=3, max_length=128)],
     data: RoomTypeUpdate,
     session: SessionDep,
     _: Annotated[
         User,
         Depends(require_manager),
     ],
-) -> RoomType:
-
+) -> RoomTypeOut:
     if not data.model_dump(exclude_unset=True):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Provide at least one of: base_rate, capacity",
-        )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Provide at least one of: base_rate, capacity")
 
     try:
-        return await update_room_type(
-            session=session,
-            name=name,
-            data=data,
-        )
-
+        return await update_room_type(session=session, name=name, data=data)
     except RoomTypeMissing as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
