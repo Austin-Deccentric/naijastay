@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 
@@ -10,7 +11,7 @@ def require_roles(*allowed_roles: UserRole) -> Callable:
     """Create a dependency that restricts access to specific user roles."""
 
     def role_checker(
-        current_user: User = Depends(get_current_user),
+        current_user: Annotated[User, Depends(get_current_user)]
     ) -> User:
         if current_user.role not in allowed_roles:
             raise HTTPException(
@@ -28,6 +29,8 @@ require_guest = require_roles(UserRole.GUEST)
 require_manager = require_roles(UserRole.MANAGER)
 
 require_receptionist = require_roles(UserRole.RECEPTIONIST)
+
+require_housekeeper = require_roles(UserRole.HOUSEKEEPER)
 
 require_guest_or_receptionist = require_roles(
     UserRole.GUEST,

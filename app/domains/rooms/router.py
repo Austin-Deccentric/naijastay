@@ -2,6 +2,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
+from redis import asyncio as aioredis
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.permissions import (
@@ -11,7 +12,7 @@ from app.core.permissions import (
 )
 from app.core.rate_limit import limiter
 from app.db.session import SessionDep
-from app.domains.rooms.models import RoomState
+from app.domains.rooms.models import Room, RoomState
 from app.domains.rooms.schemas import (
     AvailableRoomResponse,
     OccupancyReport,
@@ -31,7 +32,6 @@ from app.domains.rooms.service import (
     update_room_type,
 )
 from app.domains.rooms.streaming import room_event_generator, unavailable_events
-from app.domains.rooms.test import aioredis
 from app.domains.users.models import User
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
@@ -40,9 +40,8 @@ router = APIRouter(prefix="/rooms", tags=["Rooms"])
 @router.get("/", response_model=list[RoomDashboardRead])
 async def get_all_rooms(
     session: SessionDep,
-   
     room_state: Annotated[RoomState | None, Query(description="Filter by housekeeping state: clean|dirty")] = None,
-) -> list[RoomDashboardRead]:
+) -> list[Room]:
     return await get_rooms(session, room_state=room_state)
 
 
@@ -152,16 +151,19 @@ async def patch_room_type(
     name: Annotated[str,Path(min_length=3, max_length=128)],
     data: RoomTypeUpdate,
     session: SessionDep,
-    _: Annotated[
-        User,
-        Depends(require_manager),
-    ],
-) -> RoomTypeOut:
+    _: Annotated[User, Depends(require_manager)]
+):
     if not data.model_dump(exclude_unset=True):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Provide at least one of: base_rate, capacity")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, 
+            detail="Provide at least one of: base_rate, capacity"
+        )
 
     try:
-        return await update_room_type(session=session, name=name, data=data)
+        return await update_room_type(
+            session=session, name=name, 
+            data=data
+        )
     except RoomTypeMissing as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

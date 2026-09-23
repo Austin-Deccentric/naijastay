@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from sqlmodel import select, func
+from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.domains.bookings.models import Booking, BookingStatus, Hold
