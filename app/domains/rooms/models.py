@@ -1,7 +1,11 @@
 from datetime import date
 from enum import Enum
+from typing import TYPE_CHECKING
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from app.domains.bookings.models import Booking
 
 
 class RoomState(str, Enum):
@@ -17,6 +21,8 @@ class RoomNight(SQLModel, table=True):
     night_date: date = Field(primary_key=True)
     booking_id: int = Field(foreign_key="bookings.booking_id")    
     room_state: RoomState = RoomState.CLEAN
+
+    booking: "Booking" = Relationship(back_populates="room_nights")
 
 
 
@@ -35,3 +41,5 @@ class Room(SQLModel, table=True):
     room_type: str = Field(foreign_key="room_types.name")
     is_available: bool = Field(default=True)
     room_state: RoomState = Field(default=RoomState.CLEAN)
+
+    bookings: list["Booking"] = Relationship(back_populates="room")

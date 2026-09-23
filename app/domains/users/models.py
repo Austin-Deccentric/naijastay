@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
-# from typing import TYPE_CHECKING
-from sqlmodel import DateTime, Field, SQLModel, text
+from sqlmodel import DateTime, Field, Relationship, SQLModel, text
 
-# if TYPE_CHECKING:
-#     from app.domains.bookings.models import Booking
+if TYPE_CHECKING:
+    from app.domains.bookings.models import Booking
 
 
 class UserRole(str, Enum):
@@ -29,4 +29,4 @@ class User(SQLModel, table=True):
     )
 
     # One user can have many bookings
-    # bookings: list[Booking] = Relationship(back_populates="guest")
+    bookings: list["Booking"] = Relationship(back_populates="guest")
