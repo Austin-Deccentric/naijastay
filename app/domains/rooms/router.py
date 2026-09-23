@@ -1,14 +1,19 @@
 from datetime import date
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
+from sse_starlette.sse import EventSourceResponse
+
 from app.core.permissions import (
     require_guest_or_receptionist,
     require_manager,
 )
+from app.core.rate_limit import limiter
 from app.db.session import SessionDep
-from app.domains.rooms.models import RoomType
+from app.domains.rooms.models import RoomState, RoomType
 from app.domains.rooms.schemas import (
     AvailableRoomResponse,
+    RoomDashboardRead,
     RoomResponse,
     RoomTypeOut,
     RoomTypeUpdate,
@@ -20,8 +25,8 @@ from app.domains.rooms.service import (
     search_available_rooms,
     update_room_type,
 )
+from app.domains.rooms.streaming import room_event_generator
 from app.domains.users.models import User
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 router = APIRouter(
     prefix="/rooms",
@@ -29,28 +34,14 @@ router = APIRouter(
 )
 
 
-@router.get(
-    "/",
-    response_model=list[RoomResponse],
-)
+@router.get("/", response_model=list[RoomDashboardRead])
 async def get_all_rooms(
-    session: SessionDep,
-    _: Annotated[
-        User,
-        Depends(require_guest_or_receptionist),
-    ],
-) -> list[RoomResponse]:
+    *,
+    room_state: Annotated[RoomState | None, Query(description="Filter by housekeeping state: clean|dirty")] = None,
+    session: SessionDep
+):
+    return await get_rooms(session, room_state=room_state)
 
-    rooms = await get_rooms(session)
-
-    return [
-        RoomResponse(
-            id=room.id,
-            room_type=room.room_type,
-            is_available=room.is_available,
-        )
-        for room in rooms
-    ]
 
 
 @router.get(
@@ -58,10 +49,10 @@ async def get_all_rooms(
     response_model=list[RoomResponse],
 )
 async def get_available_rooms_for_day(
+    *,
     room_date: Annotated[date | None, Query(description="Date to check room availability. Defaults to today.")] = None,
     room_type: Annotated[str | None, Query(description="Optional room type")] = None,
-    session: SessionDep = None,
-    _: Annotated[User, Depends(require_guest_or_receptionist)] = None,
+    session: SessionDep,
 ) -> list[RoomResponse]:
 
     rooms = await get_available_rooms(
@@ -145,3 +136,11 @@ async def patch_room_type(name: Annotated[str, Path(min_length=3, max_length=128
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+@router.get("/stream")
+@limiter.exempt  # long-lived SSE: must not count against the 10/min rate limit
+async def stream_rooms(request: Request):
+    """Live chnages only. Snapshot comes from GET /rooms (Postgres)"""
+    return EventSourceResponse(
+        room_event_generator(request.app.state.redis, request), send_timeout=30
+    )
