@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 class RoomState(str, Enum):
     CLEAN = "clean"
     DIRTY = "dirty"
-    MAINTENANCE = "maintenance"
-    OCCUPIED = "occupied"
+    # MAINTENANCE = "maintenance"
+    # OCCUPIED = "occupied"
 
 class RoomNight(SQLModel, table=True):
     __tablename__ = "room_nights"

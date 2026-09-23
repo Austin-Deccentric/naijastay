@@ -25,10 +25,10 @@ async def mark_room_clean(
         session=session,
     )
 
-    if room.room_state != RoomState.DIRTY:
-        raise RoomNotDirty(
-            "Only dirty rooms can be marked clean."
-        )
+    # if room.room_state != RoomState.DIRTY:
+    #     raise RoomNotDirty(
+    #         "Only dirty rooms can be marked clean."
+    #     )
 
     room.room_state = RoomState.CLEAN
     room.is_available = True
@@ -206,16 +206,13 @@ async def get_occupancy_report(
         .where(
             Booking.check_in <= report_date,
             Booking.check_out > report_date,
-            Booking.booking_status != BookingStatus.CANCELLED,
+            Booking.booking_status != BookingStatus.CHECKED_IN,
         )
     )
 
     occupied_rooms = occupied_result.one()
 
-    available_rooms = max(
-        total_rooms - occupied_rooms,
-        0,
-    )
+    available_rooms = max(total_rooms - occupied_rooms,0,)
 
     occupancy_percentage = (
         (occupied_rooms / total_rooms) * 100

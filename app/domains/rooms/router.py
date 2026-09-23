@@ -77,14 +77,8 @@ async def search_rooms(
         Depends(require_guest_or_receptionist),
     ],
     check_in: Annotated[date, Query(description="Check-in date")],
-    check_out: Annotated[
-        date,
-        Query(description="Check-out date"),
-    ],
-    room_type: Annotated[
-        str,
-        Query(description="Room type to search for"),
-    ],
+    check_out: Annotated[date, Query(description="Check-out date")],
+    room_type: Annotated[str, Query(description="Room type to search for")],
 ) -> list[AvailableRoomResponse]:
     if check_out <= check_in:
         raise HTTPException(
@@ -110,14 +104,8 @@ async def search_rooms(
 @router.get("/occupancy", response_model=OccupancyReport)
 async def occupancy_report(
     session: SessionDep,
-    _: Annotated[
-        User,
-        Depends(require_manager),
-    ],
-    report_date: Annotated[
-        date,
-        Query(description="Date for the occupancy report"),
-    ],
+    _: Annotated[User, Depends(require_manager)],
+    report_date: Annotated[date, Query(description="Date for the occupancy report")],
 ) -> OccupancyReport:
     return await get_occupancy_report(
         session=session,

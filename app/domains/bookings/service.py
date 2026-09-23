@@ -174,7 +174,7 @@ async def check_in_guest(
 
     booking.booking_status = BookingStatus.CHECKED_IN
     room.is_available = False
-    room.room_state = RoomState.OCCUPIED
+    # room.room_state = RoomState.OCCUPIED
 
     session.add(booking)
     session.add(room)
@@ -229,10 +229,10 @@ async def check_out_guest(
             "Guest has already been checked out."
         )
 
-    room.is_available = True
+    room.is_available = False
     room.room_state = RoomState.DIRTY
 
-    booking.booking_status = BookingStatus.CANCELLED
+    booking.booking_status = BookingStatus.COMPLETED
 
     session.add(room)
     session.add(booking)
