@@ -1,10 +1,3 @@
-"""Redis integration: client factory and lifespan helpers.
-
-The connected client lives on ``app.state.redis`` (see ``app.core.utils``).
-All room-status messaging lives in ``app.domains.rooms.streaming``; this
-module only owns the connection lifecycle.
-"""
-
 from __future__ import annotations
 
 import logging
