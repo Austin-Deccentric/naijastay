@@ -7,6 +7,8 @@ from sqlmodel import Field, SQLModel
 class RoomState(str, Enum):
     CLEAN = "clean"
     DIRTY = "dirty"
+    MAINTENANCE = "maintenance"
+    OCCUPIED = "occupied"
 
 class RoomNight(SQLModel, table=True):
     __tablename__ = "room_nights"

@@ -1,12 +1,43 @@
 from datetime import UTC, date, datetime
 
-from sqlmodel import select
+from sqlmodel import select, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.rooms.models import Room, RoomNight, RoomState, RoomType
 from app.domains.rooms.schemas import RoomTypeUpdate
 
+
+class RoomNotFound(Exception):
+    pass
+
+
+class RoomNotDirty(Exception):
+    pass
+
+
+async def mark_room_clean(
+    room_id: int,
+    session: AsyncSession,
+):
+    room = await get_room(
+        room_id=room_id,
+        session=session,
+    )
+
+    if room.room_state != RoomState.DIRTY:
+        raise RoomNotDirty(
+            "Only dirty rooms can be marked clean."
+        )
+
+    room.room_state = RoomState.CLEAN
+    room.is_available = True
+
+    session.add(room)
+    await session.commit()
+    await session.refresh(room)
+
+    return room
 
 async def search_available_rooms(
     session: AsyncSession,
@@ -161,3 +192,44 @@ async def update_room_type(
     await session.refresh(room_type)
 
     return room_type
+
+async def get_occupancy_report(
+    session: AsyncSession,
+    report_date: date,
+):
+    total_result = await session.exec(select(func.count(Room.id)))
+
+    total_rooms = total_result.one()
+
+    occupied_result = await session.exec(
+        select(func.count(Booking.room_id))
+        .where(
+            Booking.check_in <= report_date,
+            Booking.check_out > report_date,
+            Booking.booking_status != BookingStatus.CANCELLED,
+        )
+    )
+
+    occupied_rooms = occupied_result.one()
+
+    available_rooms = max(
+        total_rooms - occupied_rooms,
+        0,
+    )
+
+    occupancy_percentage = (
+        (occupied_rooms / total_rooms) * 100
+        if total_rooms > 0
+        else 0.0
+    )
+
+    return {
+        "report_date": report_date,
+        "total_rooms": total_rooms,
+        "occupied_rooms": occupied_rooms,
+        "available_rooms": available_rooms,
+        "occupancy_percentage": round(
+            occupancy_percentage,
+            2,
+        ),
+    }
