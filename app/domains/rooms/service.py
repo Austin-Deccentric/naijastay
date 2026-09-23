@@ -1,21 +1,16 @@
 from datetime import UTC, date, datetime
 
-from app.domains.bookings.models import Booking, BookingStatus, Hold
-from app.domains.rooms.models import Room, RoomNight, RoomType, RoomState
-from app.domains.rooms.schemas import RoomTypeUpdate
 from sqlmodel import select, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.domains.bookings.models import Booking, BookingStatus, Hold
+from app.domains.rooms.models import Room, RoomNight, RoomState, RoomType
+from app.domains.rooms.schemas import RoomTypeUpdate
+
 
 class RoomNotFound(Exception):
     pass
-class RoomNotDirty(Exception):
-    pass
 
-from app.domains.rooms.models import RoomState
-
-class RoomNotFound(Exception):
-    pass
 
 class RoomNotDirty(Exception):
     pass
@@ -91,14 +86,15 @@ async def get_room(
     return room
 
 
-async def get_rooms(
-    session: AsyncSession,
-) -> list[Room]:
-    result = await session.exec(
-        select(Room),
-    )
+async def get_rooms(session, room_state: RoomState | None = None) -> list[Room]:
+    
+    query = select(Room)
+    if room_state is not None:
+        query = query.where(Room.room_state == room_state)
 
-    return list(result.all())
+    result = await session.exec(query)
+
+    return list(result.all()) # Mainly for the dashboard
 
 
 async def get_available_rooms(
@@ -143,7 +139,7 @@ async def nights_taken(
     check_in: date,
     check_out: date,
 ) -> list[date]:
-    """Return occupied nights for a room within [check_in, check_out)."""
+    """Return occupied nights for a room within [check_in, check_out]."""
 
     result = await session.exec(
         select(RoomNight.night_date).where(
@@ -160,10 +156,7 @@ class RoomTypeMissing(ValueError):
     pass
 
 
-async def _get_room_type(
-    session: AsyncSession,
-    name: str,
-) -> RoomType:
+async def _get_room_type(session: AsyncSession, name: str,) -> RoomType:
     result = await session.exec(
         select(RoomType).where(
             RoomType.name == name,
@@ -173,9 +166,7 @@ async def _get_room_type(
     room_type = result.first()
 
     if room_type is None:
-        raise RoomTypeMissing(
-            f"Room type '{name}' not found"
-        )
+        raise RoomTypeMissing(f"Room type '{name}' not found")
 
     return room_type
 
@@ -190,9 +181,7 @@ async def update_room_type(
         name=name,
     )
 
-    patch = data.model_dump(
-        exclude_unset=True,
-    )
+    patch = data.model_dump(exclude_unset=True)
 
     room_type.sqlmodel_update(patch)
 

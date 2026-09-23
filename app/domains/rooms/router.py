@@ -1,15 +1,21 @@
 from datetime import date
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
+from sse_starlette.sse import EventSourceResponse
+
 from app.core.permissions import (
     require_guest_or_receptionist,
     require_housekeeper,
     require_manager,
 )
+from app.core.rate_limit import limiter
 from app.db.session import SessionDep
+from app.domains.rooms.models import RoomState
 from app.domains.rooms.schemas import (
     AvailableRoomResponse,
     OccupancyReport,
+    RoomDashboardRead,
     RoomResponse,
     RoomTypeOut,
     RoomTypeUpdate,
@@ -24,39 +30,34 @@ from app.domains.rooms.service import (
     search_available_rooms,
     update_room_type,
 )
+from app.domains.rooms.streaming import room_event_generator, unavailable_events
+from app.domains.rooms.test import aioredis
 from app.domains.users.models import User
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
 
-@router.get("/", response_model=list[RoomResponse])
+
+@router.get("/", response_model=list[RoomDashboardRead])
 async def get_all_rooms(
     session: SessionDep,
-    _: Annotated[User, Depends(require_guest_or_receptionist)],
-) -> list[RoomResponse]:
-    rooms = await get_rooms(session)
-
-    return [
-        RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
-        for room in rooms
-    ]
+   
+    room_state: Annotated[RoomState | None, Query(description="Filter by housekeeping state: clean|dirty")] = None,
+) -> list[RoomDashboardRead]:
+    return await get_rooms(session, room_state=room_state)
 
 
-@router.get("/available", response_model=list[RoomResponse])
+@router.get(
+    "/available",
+    response_model=list[RoomResponse],
+)
 async def get_available_rooms_for_day(
     session: SessionDep,
     _: Annotated[
         User,
         Depends(require_guest_or_receptionist),
     ],
-    room_date: Annotated[date | None, Query(description="Date to check room availability. Defaults to today."),
-    ] = None,
-    room_type: Annotated[
-        str | None,
-        Query(
-            description="Optional room type",
-        ),
-    ] = None,
+    room_date: Annotated[date | None, Query(description="Date to check room availability. Defaults to today.")] = None,
+    room_type: Annotated[str | None, Query(description="Optional room type")] = None,
 ) -> list[RoomResponse]:
     rooms = await get_available_rooms(
         session=session,
@@ -162,4 +163,19 @@ async def patch_room_type(
     try:
         return await update_room_type(session=session, name=name, data=data)
     except RoomTypeMissing as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/stream")
+@limiter.exempt  # long-lived SSE: must not count against the 10/min rate limit
+async def stream_rooms(request: Request):
+    """Live changes only. Snapshot comes from GET /rooms (Postgres)"""
+    client: aioredis.Redis | None = getattr(request.app.state, "redis", None)
+    if client is None:
+        return EventSourceResponse(unavailable_events(), send_timeout=30)
+    return EventSourceResponse(
+        room_event_generator(request.app.state.redis, request), send_timeout=30
+    )

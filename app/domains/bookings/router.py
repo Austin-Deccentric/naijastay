@@ -1,5 +1,7 @@
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+
 from app.core.permissions import (
     require_guest,
     require_guest_or_receptionist,
@@ -36,8 +38,8 @@ from app.domains.bookings.service import (
     create_booking,
 )
 from app.domains.rooms.service import get_room
+from app.domains.rooms.streaming import publish_booking_room
 from app.domains.users.models import User
-from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 _ERROR_STATUS = {
     RoomMissing: status.HTTP_404_NOT_FOUND,
@@ -122,6 +124,7 @@ async def check_in(
         User,
         Depends(require_receptionist),
     ],
+    request: Request,
 ) -> CheckInOut:
     try:
         booking = await check_in_guest(session=session, booking_id=booking_id)
@@ -135,6 +138,8 @@ async def check_in(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except RoomMissing as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    await publish_booking_room(request, session, booking.room_id)
 
     return CheckInOut(
         booking_id=booking.booking_id,
