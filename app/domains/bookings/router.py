@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 
 from app.core.permissions import (
     require_guest,
@@ -33,8 +33,8 @@ from app.domains.bookings.service import (
     create_booking,
 )
 from app.domains.rooms.service import get_room
+from app.domains.rooms.streaming import publish_booking_room
 from app.domains.users.models import User
-
 
 _ERROR_STATUS = {
     RoomMissing: status.HTTP_404_NOT_FOUND,
@@ -144,6 +144,7 @@ async def check_in(
         User,
         Depends(require_receptionist),
     ],
+    request: Request,
 ) -> CheckInOut:
 
     try:
@@ -181,6 +182,8 @@ async def check_in(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+    await publish_booking_room(request, session, booking.room_id)
 
     return CheckInOut(
         booking_id=booking.booking_id,

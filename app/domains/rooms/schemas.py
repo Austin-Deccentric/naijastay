@@ -1,6 +1,8 @@
 from datetime import date
 
-from pydantic import BaseModel, PositiveFloat, model_validator
+from pydantic import BaseModel, Field, PositiveFloat, model_validator
+
+from app.domains.rooms.models import RoomState
 
 
 class RoomSearchRequest(BaseModel):
@@ -34,6 +36,12 @@ class RoomTypeOut(BaseModel):
 
 class RoomTypeUpdate(BaseModel):
     base_rate: PositiveFloat | None = None
-    capacity: PositiveFloat | None = None
+    capacity: int | None = None
 
     model_config = {"extra": "forbid"}
+
+class RoomDashboardRead(BaseModel):
+    room_id: int = Field(validation_alias="id")
+    room_type: str
+    is_available: bool
+    room_state: RoomState

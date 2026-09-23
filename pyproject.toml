@@ -12,4 +12,6 @@ dependencies = [
     "slowapi>=0.1.10",
     "sqlmodel>=0.0.42",
     "apscheduler>=3.10.0",
+    "redis>=8.1.0",
+    "sse-starlette>=3.4.11",
 ]
