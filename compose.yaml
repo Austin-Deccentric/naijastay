@@ -1,6 +1,33 @@
 services:
+  api:
+    build: .
+    container_name: naijastay-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+ 
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      # Flip to "true" for a fresh demo DB (seed wipes tables). Keep "false"
+      # in day-to-day dev so restarts never delete data.
+      SEED_ON_BOOT: "false"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   postgres:
-    image: postgres:17
+    image: postgres:17-alpine
     container_name: naijastay-postgres
     restart: unless-stopped
     environment:
