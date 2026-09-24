@@ -2,6 +2,16 @@
 
 Cache never raises: every Redis failure falls
 through to Postgres.
+
+System improvement (known gap): background sweepers do not invalidate the
+room cache. `delete_expired_holds` and `cancel_stale_processing`
+(app/domains/bookings/sweeps.py) delete/free holds directly via Postgres
+with no Redis access (background context has no request). Until they open
+their own short-lived client and call invalidate_prefix(client, "rooms")
+when rows actually change, hold-expiry staleness heals by TTL only (30s).
+Do not raise search/available TTLs above 30s until this is wired; idle
+sweeper runs (nothing deleted) should skip Redis entirely.
+
 """
 
 from __future__ import annotations
@@ -15,6 +25,7 @@ logger = logging.getLogger("naijastay")
 
 DEFAULT_TTL = 30
 ROOMS_LIST_TTL = 30
+ROOMS_SEARCH_TTL = 60
 
 
 def make_key(namespace: str, *parts: object) -> str:

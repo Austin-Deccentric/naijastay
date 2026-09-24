@@ -6,9 +6,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.rooms.models import Room, RoomNight, RoomState, RoomType
-from app.domains.rooms.schemas import RoomDashboardRead, RoomTypeUpdate
+from app.domains.rooms.schemas import (
+    AvailableRoomResponse,
+    RoomDashboardRead,
+    RoomTypeUpdate,
+)
 
 _ROOMS_ADAPTER = TypeAdapter(list[RoomDashboardRead])
+_SEARCH_ADAPTER = TypeAdapter(list[AvailableRoomResponse])
+
 
 class RoomNotFound(Exception):
     pass
