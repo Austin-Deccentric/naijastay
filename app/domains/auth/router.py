@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.rate_limit import limiter
+from app.core.response import ApiResponse
 from app.core.security import create_access_token
 from app.db.session import SessionDep
 from app.domains.auth.schemas import (
@@ -22,12 +23,12 @@ router = APIRouter(
 )
 
 @limiter.limit("10/hour")
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=ApiResponse[UserResponse], status_code=status.HTTP_201_CREATED)
 async def register(
     request: Request,
     data: RegisterRequest,
     session: SessionDep,
-) -> UserResponse:
+) -> ApiResponse[UserResponse]:
     """Register a new guest user."""
     try:
         user = await register_user(
@@ -39,21 +40,25 @@ async def register(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-    return UserResponse(
-        id=user.id,
-        email=user.email,
-        role=user.role,
-        is_active=user.is_active,
+    return ApiResponse(
+        status="success",
+        message="Guest registered.",
+        data=UserResponse(
+            id=user.id,
+            email=user.email,
+            role=user.role,
+            is_active=user.is_active,
+        ),
     )
 
 
 @limiter.limit("5/minute")
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=ApiResponse[LoginResponse])
 async def login(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
-) -> LoginResponse:
+) -> ApiResponse[LoginResponse]:
     """Authenticate a user and return a JWT access token."""
     user = await authenticate_user(
         session=session,
@@ -70,13 +75,17 @@ async def login(
         subject=str(user.id),
         role=user.role.value,
     )
-    return LoginResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=UserResponse(
-            id=user.id,
-            email=user.email,
-            role=user.role,
-            is_active=user.is_active,
+    return ApiResponse(
+        status="success",
+        message="Login successful.",
+        data=LoginResponse(
+            access_token=access_token,
+            token_type="bearer",
+            user=UserResponse(
+                id=user.id,
+                email=user.email,
+                role=user.role,
+                is_active=user.is_active,
+            ),
         ),
     )
