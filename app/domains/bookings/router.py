@@ -7,6 +7,7 @@ from app.core.permissions import (
     require_guest_or_receptionist,
     require_receptionist,
 )
+from app.core.response import ApiResponse
 from app.db.session import SessionDep
 from app.domains.bookings.models import Hold
 from app.domains.bookings.schema import (
@@ -62,7 +63,11 @@ router = APIRouter(
 
 root_router = APIRouter(tags=["Holds"])
 
-@root_router.post("/holds/{room_id}", status_code=status.HTTP_201_CREATED)
+@root_router.post(
+    "/holds/{room_id}",
+    response_model=ApiResponse[Hold],
+    status_code=status.HTTP_201_CREATED,
+)
 async def hold_room(
     room_id: Annotated[int, Path(gt=0)],
     session: SessionDep,
@@ -70,7 +75,7 @@ async def hold_room(
         User,
         Depends(require_guest),
     ],
-) -> Hold:
+) -> ApiResponse[Hold]:
     try:
         room = await get_room(room_id=room_id, session=session)
     except ValueError as exc:
@@ -90,10 +95,14 @@ async def hold_room(
     await session.commit()
     await session.refresh(registered_hold)
 
-    return registered_hold
+    return ApiResponse(status="success", message="Room held.", data=registered_hold)
 
 
-@router.post("/", response_model=BookingOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=ApiResponse[BookingOut],
+    status_code=status.HTTP_201_CREATED,
+)
 async def book_room(
     data: BookingCreate,
     session: SessionDep,
@@ -101,9 +110,9 @@ async def book_room(
         User,
         Depends(require_guest_or_receptionist),
     ],
-):
+) :
     try:
-        return await create_booking(
+        booking = await create_booking(
             session=session,
             data=data,
             client=client,
@@ -116,9 +125,10 @@ async def book_room(
             ),
             detail=str(exc),
         ) from exc
+    return ApiResponse(status="success", message="Booking created.", data=booking)
 
 
-@router.post("/{booking_id}/check-in", response_model=CheckInOut)
+@router.post("/{booking_id}/check-in", response_model=ApiResponse[CheckInOut])
 async def check_in(
     booking_id: Annotated[
         int,
@@ -130,7 +140,7 @@ async def check_in(
         Depends(require_receptionist),
     ],
     request: Request,
-) -> CheckInOut:
+) -> ApiResponse[CheckInOut]:
     try:
         booking = await check_in_guest(session=session, booking_id=booking_id)
     except BookingNotFound as exc:
@@ -146,17 +156,21 @@ async def check_in(
 
     await publish_booking_room(request, session, booking.room_id)
 
-    return CheckInOut(
-        booking_id=booking.booking_id,
-        guest_email=booking.guest_email,
-        room_id=booking.room_id,
-        check_in=booking.check_in,
-        check_out=booking.check_out,
-        booking_status=booking.booking_status.value,
-        room_available=False,
+    return ApiResponse(
+        status="success",
+        message="Guest checked in.",
+        data=CheckInOut(
+            booking_id=booking.booking_id,
+            guest_email=booking.guest_email,
+            room_id=booking.room_id,
+            check_in=booking.check_in,
+            check_out=booking.check_out,
+            booking_status=booking.booking_status.value,
+            room_available=False,
+        ),
     )
 
-@router.post("/{booking_id}/check-out", response_model=CheckOutOut)
+@router.post("/{booking_id}/check-out", response_model=ApiResponse[CheckOutOut])
 async def check_out(
     booking_id: Annotated[
         int,
@@ -168,9 +182,9 @@ async def check_out(
         Depends(require_receptionist),
     ],
     request: Request,
-) -> CheckOutOut:
+) -> ApiResponse[CheckOutOut]:
     try:
-        booking = await check_out_guest(
+        booking, already_completed = await check_out_guest(
             session=session,
             booking_id=booking_id,
         )
@@ -186,12 +200,17 @@ async def check_out(
 
     await publish_booking_room(request, session, booking.room_id)
 
-    return CheckOutOut(
-        booking_id=booking.booking_id,
-        guest_email=booking.guest_email,
-        room_id=booking.room_id,
-        check_out=booking.check_out,
-        booking_status=booking.booking_status.value,
-        room_available=False,
-        room_state="dirty",
+    return ApiResponse(
+        status="success",
+        message="Guest already checked out." if already_completed 
+        else "Guest checked out.",
+        data=CheckOutOut(
+            booking_id=booking.booking_id,
+            guest_email=booking.guest_email,
+            room_id=booking.room_id,
+            check_out=booking.check_out,
+            booking_status=booking.booking_status.value,
+            room_available=False,
+            room_state="dirty",
+        )
     )

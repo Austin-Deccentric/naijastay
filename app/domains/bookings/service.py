@@ -187,7 +187,12 @@ async def check_in_guest(
 async def check_out_guest(
     session: AsyncSession,
     booking_id: int,
-) -> Booking:
+) -> tuple[Booking, bool]:
+    """Check out a booking. Returns (booking, already_completed).
+
+    Idempotent: already-COMPLETED bookings are a no-op success so the
+    router can message the replay distinctly.
+    """
     booking = await session.get(
         Booking,
         booking_id,
@@ -199,7 +204,7 @@ async def check_out_guest(
         )
 
     if booking.booking_status == BookingStatus.COMPLETED:
-        return booking  
+        return booking, True
 
     if booking.booking_status != BookingStatus.CHECKED_IN:
         raise BookingNotCheckedIn(
@@ -235,7 +240,7 @@ async def check_out_guest(
     await session.commit()
     await session.refresh(booking)
 
-    return booking
+    return booking, False
 
 async def check_existing_hold(session: AsyncSession, room_id: int) -> bool:
     existing_hold = await session.get(Hold, room_id)

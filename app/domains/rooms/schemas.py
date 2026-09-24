@@ -22,6 +22,8 @@ class RoomResponse(BaseModel):
     is_available: bool
 
 class AvailableRoomResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     room_type: str
 

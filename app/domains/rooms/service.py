@@ -8,6 +8,7 @@ from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.rooms.models import Room, RoomNight, RoomState, RoomType
 from app.domains.rooms.schemas import (
     AvailableRoomResponse,
+    OccupancyReport,
     RoomDashboardRead,
     RoomTypeUpdate,
 )
@@ -23,13 +24,18 @@ class RoomNotFound(Exception):
 async def mark_room_clean(
     room_id: int,
     session: AsyncSession,
-):
+) -> tuple[Room, bool]:
+    """Mark a room clean. Returns (room, already_clean).
+
+    Idempotent: already-clean rooms are a no-op success so the router
+    can message the replay distinctly.
+    """
     room = await get_room(
         room_id=room_id,
         session=session,
     )
 
-    # Idempotent: already-clean rooms are a no-op
+    already_clean = room.room_state == RoomState.CLEAN
     room.room_state = RoomState.CLEAN
     room.is_available = True
 
@@ -37,7 +43,7 @@ async def mark_room_clean(
     await session.commit()
     await session.refresh(room)
 
-    return room
+    return room, already_clean
 
 async def search_available_rooms(
     session: AsyncSession,
@@ -195,7 +201,7 @@ async def update_room_type(
 async def get_occupancy_report(
     session: AsyncSession,
     report_date: date | None = None,
-):
+) -> OccupancyReport:
     if report_date is None:
         report_date = date.today()
     total_result = await session.exec(select(func.count(Room.id)))
@@ -221,13 +227,10 @@ async def get_occupancy_report(
         else 0.0
     )
 
-    return {
+    return OccupancyReport.model_validate({
         "report_date": report_date,
         "total_rooms": total_rooms,
         "occupied_rooms": occupied_rooms,
         "available_rooms": available_rooms,
-        "occupancy_percentage": round(
-            occupancy_percentage,
-            2,
-        ),
-    }
+        "occupancy_percentage": round(occupancy_percentage, 2)
+    })
