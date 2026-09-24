@@ -1,11 +1,19 @@
 from datetime import UTC, date, datetime
 
+from pydantic import TypeAdapter
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.rooms.models import Room, RoomNight, RoomState, RoomType
-from app.domains.rooms.schemas import RoomTypeUpdate
+from app.domains.rooms.schemas import (
+    AvailableRoomResponse,
+    RoomDashboardRead,
+    RoomTypeUpdate,
+)
+
+_ROOMS_ADAPTER = TypeAdapter(list[RoomDashboardRead])
+_SEARCH_ADAPTER = TypeAdapter(list[AvailableRoomResponse])
 
 
 class RoomNotFound(Exception):
@@ -79,14 +87,12 @@ async def get_room(
 
 
 async def get_rooms(session, room_state: RoomState | None = None) -> list[Room]:
-    
-    query = select(Room)
-    if room_state is not None:
+    query = select(Room.id, Room.room_type, Room.is_available, Room.room_state)
+    if room_state:
         query = query.where(Room.room_state == room_state)
-
-    result = await session.exec(query)
-
-    return list(result.all()) # Mainly for the dashboard
+    result = await session.execute(query.order_by(Room.id))
+    return result.all()
+    
 
 
 async def get_available_rooms(

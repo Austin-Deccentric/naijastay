@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, Field, PositiveFloat, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, model_validator
 
 from app.domains.rooms.models import RoomState
 
@@ -45,6 +45,8 @@ class OccupancyReport(BaseModel):
 
 
 class RoomDashboardRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     room_id: int = Field(validation_alias="id")
     room_type: str
     is_available: bool
