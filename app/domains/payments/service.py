@@ -111,7 +111,6 @@ async def record_offline_payment(
         raise RoomUnavailable("Room for booking no longer exists.")
 
     booking.booking_status = BookingStatus.CONFIRMED
-    room.is_available = False
     _add_room_nights(session, booking)
     payment = Payment(booking_id=booking.booking_id, amount=amount,
                       currency=currency, method=PaymentMethod.OFFLINE,
@@ -190,7 +189,6 @@ async def process_payment_event(session: AsyncSession, event: PaymentWebhookEven
         raise AmountMismatch("Room for booking no longer exists.") # TODO Chamge error raised
 
     booking.booking_status = BookingStatus.CONFIRMED
-    room.is_available = False
     await session.delete(hold)
     _add_room_nights(session, booking)
 

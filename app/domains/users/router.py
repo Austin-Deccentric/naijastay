@@ -7,7 +7,7 @@ from app.core.permissions import require_manager
 from app.db.session import SessionDep
 from app.domains.users.models import User
 from app.domains.users.schema import CreateStaffRequest, StaffResponse
-from app.domains.users.service import create_staff, disable_staff
+from app.domains.users.service import create_staff, disable_staff, enable_staff
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -58,6 +58,33 @@ async def disable_staff_account(
 
     try:
         staff = await disable_staff(
+            session=session,
+            staff_id=staff_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    return StaffResponse(
+        id=staff.id,
+        email=staff.email,
+        role=staff.role,
+        is_active=staff.is_active,
+    )
+
+
+@router.patch("/staff/{staff_id}/enable", response_model=StaffResponse)
+async def enable_staff_account(
+    staff_id: int,
+    session: SessionDep,
+    current_user:Annotated[User, Depends(require_manager)],
+) -> StaffResponse:
+    """Allow a manager to re-enable a disabled staff account."""
+
+    try:
+        staff = await enable_staff(
             session=session,
             staff_id=staff_id,
         )

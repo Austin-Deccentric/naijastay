@@ -96,7 +96,7 @@ def read_root():
 
 
 @app.get("/health")
-@limiter.exempt  # docker healthcheck polls every 10s; must not consume rate budget
+@limiter.exempt  
 def health_check():
     """Liveness probe: process is alive. No auth, no DB/Redis touch."""
     return {"status": "ok"}

@@ -191,10 +191,13 @@ async def update_room_type(
 
     return room_type
 
+
 async def get_occupancy_report(
     session: AsyncSession,
-    report_date: date,
+    report_date: date | None = None,
 ):
+    if report_date is None:
+        report_date = date.today()
     total_result = await session.exec(select(func.count(Room.id)))
 
     total_rooms = total_result.one()

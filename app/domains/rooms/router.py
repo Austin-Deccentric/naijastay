@@ -60,7 +60,10 @@ async def get_all_rooms(
     redis: RedisDep,
     room_state: Annotated[
         RoomState | None,
-        Query(description="Filter by housekeeping state: clean|dirty"),
+        Query(
+            description="Filter by housekeeping state: clean | dirty",
+            examples=["clean"],
+        ),
     ] = None,
 ) -> Response:
     async def producer() -> str:
@@ -88,8 +91,20 @@ async def get_available_rooms_for_day(
         User,
         Depends(require_guest_or_receptionist),
     ],
-    room_date: Annotated[date | None, Query(description="Date to check room availability. Defaults to today.")] = None,
-    room_type: Annotated[str | None, Query(description="Optional room type")] = None,
+    room_date: Annotated[
+        date | None,
+        Query(
+            description="Date to check room availability. Defaults to today.",
+            examples=["2026-09-25"],
+        ),
+    ] = None,
+    room_type: Annotated[
+        str | None,
+        Query(
+            description="Optional room type",
+            examples=["standard", "deluxe", "executive-suite"],
+        ),
+    ] = None,
 ) -> list[RoomResponse]:
     rooms = await get_available_rooms(
         session=session,
@@ -110,9 +125,9 @@ async def search_rooms(
         User,
         Depends(require_guest_or_receptionist),
     ],
-    check_in: Annotated[date, Query(description="Check-in date")],
-    check_out: Annotated[date, Query(description="Check-out date")],
-    room_type: Annotated[str, Query(description="Room type to search for")],
+    check_in: Annotated[date, Query(description="Check-in date", examples=["2026-09-25"])],
+    check_out: Annotated[date, Query(description="Check-out date", examples=["2026-09-27"])],
+    room_type: Annotated[str, Query(description="Room type to search for", examples=["standard", "deluxe", "executive-suite"])]
 ) -> Response:
     if check_out <= check_in:
         raise HTTPException(
@@ -143,7 +158,13 @@ async def search_rooms(
 async def occupancy_report(
     session: SessionDep,
     _: Annotated[User, Depends(require_manager)],
-    report_date: Annotated[date, Query(description="Date for the occupancy report")],
+    report_date: Annotated[
+        date | None,
+        Query(
+            description="Date for the occupancy report",
+            examples=["2026-09-25"],
+        ),
+    ] = None,
 ) -> OccupancyReport:
     return await get_occupancy_report(
         session=session,

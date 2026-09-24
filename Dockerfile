@@ -44,4 +44,4 @@ COPY --chown=appuser:appuser scripts/docker-entrypoint.sh ./scripts/docker-entry
 EXPOSE 8000
 
 ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

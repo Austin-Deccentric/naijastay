@@ -70,6 +70,31 @@ async def disable_staff(
 
     return staff
 
+async def enable_staff(
+    session: SessionDep,
+    staff_id: int,
+) -> User:
+    """Re-enable a disabled staff account (idempotent no-op if already active)."""
+    staff = await session.get(User, staff_id)
+    if staff is None:
+        raise ValueError("Staff account not found.")
+
+    if staff.role not in {
+        UserRole.RECEPTIONIST,
+        UserRole.HOUSEKEEPER,
+    }:
+        raise ValueError(
+            "Only staff accounts can be enabled."
+        )
+    staff.is_active = True
+
+    session.add(staff)
+    await session.commit()
+    await session.refresh(staff)
+
+    return staff
+
+
 async def get_user_by_email(session: SessionDep, email: str) -> User | None:
     """Find a user by email (case-insensitive). Returns None if missing."""
     result = await session.exec(
