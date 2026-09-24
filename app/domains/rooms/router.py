@@ -1,7 +1,16 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from redis import asyncio as aioredis
 from sse_starlette.sse import EventSourceResponse
 
@@ -12,7 +21,7 @@ from app.core.permissions import (
 )
 from app.core.rate_limit import limiter
 from app.db.session import SessionDep
-from app.domains.rooms.models import Room, RoomState
+from app.domains.rooms.models import RoomState
 from app.domains.rooms.schemas import (
     AvailableRoomResponse,
     OccupancyReport,
@@ -22,6 +31,7 @@ from app.domains.rooms.schemas import (
     RoomTypeUpdate,
 )
 from app.domains.rooms.service import (
+    _ROOMS_ADAPTER,
     RoomTypeMissing,
     get_available_rooms,
     get_occupancy_report,
@@ -32,16 +42,34 @@ from app.domains.rooms.service import (
 )
 from app.domains.rooms.streaming import room_event_generator, unavailable_events
 from app.domains.users.models import User
+from app.integrations.cache import ROOMS_LIST_TTL, get_or_set_json, make_key
+from app.integrations.redis import RedisDep
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
 
 
-@router.get("/", response_model=list[RoomDashboardRead])
+@router.get("/", response_model=list[RoomDashboardRead])  # for docs only
 async def get_all_rooms(
     session: SessionDep,
-    room_state: Annotated[RoomState | None, Query(description="Filter by housekeeping state: clean|dirty")] = None,
-) -> list[Room]:
-    return await get_rooms(session, room_state=room_state)
+    redis: RedisDep,
+    room_state: Annotated[
+        RoomState | None,
+        Query(description="Filter by housekeeping state: clean|dirty"),
+    ] = None,
+) -> Response:
+    async def producer() -> str:
+        rooms = await get_rooms(session, room_state=room_state)
+        return _ROOMS_ADAPTER.dump_json(
+            _ROOMS_ADAPTER.validate_python(rooms)
+        ).decode()
+
+    cached = await get_or_set_json(
+        redis,
+        make_key("rooms", "list", room_state.value if room_state else "all"),
+        ROOMS_LIST_TTL,
+        producer,
+    )
+    return Response(content=cached, media_type="application/json")
 
 
 @router.get(
