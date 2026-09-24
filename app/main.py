@@ -65,14 +65,15 @@ async def add_request_id_and_timing(request: Request, call_next):
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Response-Time"] = f"{elapsed:.4f}s"
 
-    logger.info(
-        "request completed method=%s path=%s status=%s request_id=%s duration=%.4fs",
-        request.method,
-        request.url.path,
-        response.status_code,
-        request_id,
-        elapsed,
-    )
+    if request.url.path != "/health":
+        logger.info(
+            "request completed method=%s path=%s status=%s request_id=%s duration=%.4fs",
+            request.method,
+            request.url.path,
+            response.status_code,
+            request_id,
+            elapsed,
+        )
     return response
 
 
@@ -92,3 +93,10 @@ app.include_router(payments_webhook_router)
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
+
+
+@app.get("/health")
+@limiter.exempt  # docker healthcheck polls every 10s; must not consume rate budget
+def health_check():
+    """Liveness probe: process is alive. No auth, no DB/Redis touch."""
+    return {"status": "ok"}
