@@ -39,6 +39,7 @@ COPY --chown=appuser:appuser alembic.ini ./alembic.ini
 COPY --chown=appuser:appuser migrations/ ./migrations/
 COPY --chown=appuser:appuser app/ ./app/
 COPY --chown=appuser:appuser scripts/seed.py ./scripts/seed.py
+COPY --chown=appuser:appuser mock_payment_provider.py ./mock_payment_provider.py
 COPY --chown=appuser:appuser scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 
 EXPOSE 8000

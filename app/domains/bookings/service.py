@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 
+from app.db.session import SessionDep
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.bookings.schema import BookingCreate
 from app.domains.rooms.models import RoomState, RoomType
@@ -235,3 +236,7 @@ async def check_out_guest(
     await session.refresh(booking)
 
     return booking
+
+async def check_existing_hold(session: AsyncSession, room_id: int) -> bool:
+    existing_hold = await session.get(Hold, room_id)
+    return bool(existing_hold)

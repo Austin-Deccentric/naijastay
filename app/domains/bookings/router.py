@@ -33,6 +33,7 @@ from app.domains.bookings.service import (
     RateMissing,
     RoomMissing,
     RoomUnavailable,
+    check_existing_hold,
     check_in_guest,
     check_out_guest,
     create_booking,
@@ -78,6 +79,10 @@ async def hold_room(
     if not room.is_available:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Room is not available")
 
+    is_held = await check_existing_hold(session, room_id)
+    if is_held:
+        raise HTTPException(status_code=409, detail="Room already held")
+        
     registered_hold = Hold(room_id=room_id, guest_email=guest.email)
 
     session.add(registered_hold)
