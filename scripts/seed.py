@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import settings
 from app.core.security import hash_password
+from app.core.time import utc_today
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.rooms.models import Room, RoomNight, RoomState, RoomType
 from app.domains.users.models import User, UserRole
@@ -128,7 +129,7 @@ async def reset_tables(session: AsyncSession) -> None:
 
 
 async def seed(session: AsyncSession) -> dict:
-    today = date.today()  # noqa: DTZ011 — matches service logic (date.today() in bookings/service.py)
+    today = utc_today()  # UTC everywhere: matches server-side date boundaries.
     now = datetime.now(UTC)
 
     # --- room types ---

@@ -1,13 +1,14 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
-from app.db.session import SessionDep
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.time import utc_today
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.bookings.schema import BookingCreate
 from app.domains.rooms.models import RoomState, RoomType
 from app.domains.rooms.service import get_room, nights_taken
 from app.domains.users.models import User, UserRole
 from app.domains.users.service import get_user_by_email
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class BookingError(Exception):
@@ -72,8 +73,8 @@ async def create_booking(
         if guest.role != UserRole.GUEST:
             raise NotAGuest("Only guest accounts can be booked for.")
 
-    if data.check_out <= data.check_in:
-        raise BadDates("check_out must be after check_in.")
+    if (data.check_out <= data.check_in) or (data.check_in < utc_today()):
+        raise BadDates("check_out must be after check_in. and check_in cannot happen in the past")
 
     try:
         room = await get_room(room_id=data.room_id, session=session)
@@ -157,7 +158,7 @@ async def check_in_guest(
     if booking.booking_status != BookingStatus.CONFIRMED:
         raise BookingNotConfirmed("Only confirmed bookings can be checked in.")
 
-    today = date.today()
+    today = utc_today()
 
     if booking.check_in != today:
         raise CheckInDateMismatch("Guest can only be checked in on the booking check-in date.")
@@ -211,7 +212,7 @@ async def check_out_guest(
             "Guest has not been checked in."
         )
 
-    today = date.today()
+    today = utc_today()
 
     if booking.check_out != today:
         raise CheckOutDateMismatch(
