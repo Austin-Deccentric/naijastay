@@ -18,3 +18,11 @@ class StaffResponse(BaseModel):
     email: EmailStr
     role: UserRole
     is_active: bool
+
+
+class UserProfile(BaseModel):
+    """Authenticated user's own profile (GET /users/me)."""
+    id: int
+    email: EmailStr
+    role: UserRole
+    is_active: bool

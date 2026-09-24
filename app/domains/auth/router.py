@@ -53,12 +53,12 @@ async def register(
 
 
 @limiter.limit("5/minute")
-@router.post("/login", response_model=ApiResponse[LoginResponse])
+@router.post("/login", response_model=LoginResponse)
 async def login(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
-) -> ApiResponse[LoginResponse]:
+) -> LoginResponse:
     """Authenticate a user and return a JWT access token."""
     user = await authenticate_user(
         session=session,
@@ -75,17 +75,13 @@ async def login(
         subject=str(user.id),
         role=user.role.value,
     )
-    return ApiResponse(
-        status="success",
-        message="Login successful.",
-        data=LoginResponse(
-            access_token=access_token,
-            token_type="bearer",
-            user=UserResponse(
-                id=user.id,
-                email=user.email,
-                role=user.role,
-                is_active=user.is_active,
-            ),
-        ),
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            role=user.role,
+            is_active=user.is_active,
+        )
     )
