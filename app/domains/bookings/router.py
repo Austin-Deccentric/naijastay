@@ -175,8 +175,7 @@ async def check_out(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except CheckOutDateMismatch as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except AlreadyCheckedOut as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+   
     except RoomMissing as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -188,6 +187,6 @@ async def check_out(
         room_id=booking.room_id,
         check_out=booking.check_out,
         booking_status=booking.booking_status.value,
-        room_available=True,
+        room_available=False,
         room_state="dirty",
     )

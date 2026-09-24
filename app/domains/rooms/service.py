@@ -12,10 +12,6 @@ class RoomNotFound(Exception):
     pass
 
 
-class RoomNotDirty(Exception):
-    pass
-
-
 async def mark_room_clean(
     room_id: int,
     session: AsyncSession,
@@ -25,11 +21,7 @@ async def mark_room_clean(
         session=session,
     )
 
-    # if room.room_state != RoomState.DIRTY:
-    #     raise RoomNotDirty(
-    #         "Only dirty rooms can be marked clean."
-    #     )
-
+    # Idempotent: already-clean rooms are a no-op
     room.room_state = RoomState.CLEAN
     room.is_available = True
 
@@ -202,11 +194,11 @@ async def get_occupancy_report(
     total_rooms = total_result.one()
 
     occupied_result = await session.exec(
-        select(func.count(Booking.room_id))
+       select(func.count(func.distinct(Booking.room_id)))
         .where(
             Booking.check_in <= report_date,
             Booking.check_out > report_date,
-            Booking.booking_status != BookingStatus.CHECKED_IN,
+            Booking.booking_status == BookingStatus.CHECKED_IN,
         )
     )
 

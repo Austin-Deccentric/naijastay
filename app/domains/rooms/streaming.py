@@ -37,7 +37,7 @@ async def publish_room_status(client: aioredis.Redis, room: Room) -> bool:
     """Publish one ``room_status`` delta. Best-effort: never raises"""
     try:
         received = await client.publish(CHANNEL, room_status_payload(room))
-    except RedisConnectionError:
+    except Exception:
         logger.warning("Redis unavailable; dropping room_status delta for room %s", room.id)
         return False
     return received > 0

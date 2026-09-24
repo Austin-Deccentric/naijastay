@@ -20,7 +20,6 @@ class GuestNotFound(BookingError): ...    # -> 404, receptionist's email unknown
 class NotAGuest(BookingError): ...        # -> 422, email belongs to staff
 class BadDates(BookingError): ...         # -> 422
 class RateMissing(BookingError): ...      # -> 500, room_type has no rate row
-class BookingAlreadyCompleted(BookingError): ...
 
 class BookingMissing(BookingError): ...   # -> 404
 class NotProcessing(BookingError): ...    # -> 409, not payable/confirmable
@@ -198,13 +197,12 @@ async def check_out_guest(
             "Booking not found."
         )
 
+    if booking.booking_status == BookingStatus.COMPLETED:
+        return booking  
+
     if booking.booking_status != BookingStatus.CHECKED_IN:
         raise BookingNotCheckedIn(
             "Guest has not been checked in."
-        )
-    elif booking.booking_status == BookingStatus.COMPLETED:
-        raise BookingAlreadyCompleted(
-            "Guest has already been checked out."
         )
 
     today = date.today()
@@ -224,10 +222,6 @@ async def check_out_guest(
             "Room assigned to this booking was not found."
         ) from exc
 
-    if room.is_available:
-        raise AlreadyCheckedOut(
-            "Guest has already been checked out."
-        )
 
     room.is_available = False
     room.room_state = RoomState.DIRTY

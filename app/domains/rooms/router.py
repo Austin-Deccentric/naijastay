@@ -22,7 +22,6 @@ from app.domains.rooms.schemas import (
     RoomTypeUpdate,
 )
 from app.domains.rooms.service import (
-    RoomNotDirty,
     RoomTypeMissing,
     get_available_rooms,
     get_occupancy_report,
@@ -129,9 +128,7 @@ async def mark_clean(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except RoomNotDirty as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-
+   
     return RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
 
 @router.patch("/room-types/{name}", response_model=RoomTypeOut)
