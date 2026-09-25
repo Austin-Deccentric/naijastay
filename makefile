@@ -1,4 +1,4 @@
-.PHONY: install dev run migrate makemigration downgrade current history clean
+.PHONY: install dev run migrate makemigration downgrade current history test seed seed-yes clean
 
 install:           ## install deps
 	uv sync
@@ -23,6 +23,15 @@ current:           ## show current revision
 
 history:           ## show revision history
 	uv run alembic history
+
+test:              ## run test suite
+	uv run pytest -q
+
+seed:              ## seed dev database (destructive, asks first)
+	uv run python scripts/seed.py --reset
+
+seed-yes:          ## seed dev database without prompt
+	uv run python scripts/seed.py --reset --yes
 
 clean:             ## remove virtualenv
 	rm -rf .venv
