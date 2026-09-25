@@ -140,12 +140,20 @@ standard shaped, noted as the exception.
 **Midnight broke date logic.** Local and server clocks disagreed on what day
 it is for one hour daily. One shared clock helper fixed it everywhere.
 
+**Room reads validated twice per hit.** Building the response adapter inside
+the route rebuilt its schema on every request, then the response model
+validated the same rows again on the way out. We moved both adapters module
+wide (`_ROOMS_ADAPTER`, `_SEARCH_ADAPTER`) so they compile once on import,
+and the two cached reads return raw JSON so the rows validate exactly once
+per cache miss, never per hit.
+
 ## Still Open
 
 Separate test database so suites stop wiping dev data. Real payment provider
 (the mock ships in the image, marked for removal). Health checks that verify
 the database, not just the process. Live stream events for cleaning and room
-type changes. Envelope shape for the two cached room reads.
+type changes. Envelope shape for the two cached room reads. API versioning
+so clients can pin a contract (only the webhook is versioned today).
 
 ## The API at a Glance
 
