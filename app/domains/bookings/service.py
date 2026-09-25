@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.time import utc_today
@@ -102,6 +103,17 @@ async def create_booking(
         await session.commit()
 
         raise HoldExpired("Hold has expired.")
+
+    overlap = await session.exec(
+        select(Booking.booking_id).where(
+            Booking.room_id == data.room_id,
+            Booking.booking_status.not_in([BookingStatus.CANCELLED, BookingStatus.COMPLETED]),
+            Booking.check_in < data.check_out,
+            Booking.check_out > data.check_in,
+        )
+    )
+    if overlap.first() is not None:
+        raise RoomUnavailable("Room already booked for those dates.")
 
     nights = (data.check_out - data.check_in).days
 
