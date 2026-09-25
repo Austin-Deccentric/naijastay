@@ -4,17 +4,18 @@ No hold required, exact amount only, receptionists only. Offline payments
 write no ProcessedEvent row — those remain provider-only.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from app.domains.bookings.models import BookingStatus
+from app.core.time import utc_today
 from tests import helpers
 
 URL = "/payments/offline"
 
 
 def _processing_booking(room_id: int = 201, guest: str = helpers.GUEST_1) -> dict:
-    check_in = date.today() + timedelta(days=7)
-    check_out = date.today() + timedelta(days=9)
+    check_in = utc_today() + timedelta(days=7)
+    check_out = utc_today() + timedelta(days=9)
     return helpers.create_booking(
         guest, room_id, check_in, check_out, BookingStatus.PROCESSING, 130000.0
     )
@@ -30,10 +31,11 @@ def test_receptionist_records_offline_payment(client, receptionist_headers):
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["booking_id"] == created["booking_id"]
-    assert body["reference"] == created["ref"]
-    assert body["booking_status"] == "confirmed"
-    assert body["method"] == "offline"
+    assert body["status"] == "success"
+    assert body["data"]["booking_id"] == created["booking_id"]
+    assert body["data"]["reference"] == created["ref"]
+    assert body["data"]["booking_status"] == "confirmed"
+    assert body["data"]["method"] == "offline"
     assert helpers.get_booking_status(created["booking_id"]) == "confirmed"
     assert helpers.count("payments", f"WHERE booking_id = {created['booking_id']}") == 1
     assert helpers.count("room_nights", f"WHERE booking_id = {created['booking_id']}") == 2
@@ -65,7 +67,7 @@ def test_offline_wrong_amount_returns_422(client, receptionist_headers):
 
 
 def test_offline_non_processing_returns_409(client, receptionist_headers):
-    today = date.today()
+    today = utc_today()
     created = helpers.create_booking(
         helpers.GUEST_1, 101, today, today + timedelta(days=2),
         BookingStatus.CONFIRMED, 70000.0,

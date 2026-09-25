@@ -27,6 +27,7 @@ GUEST_1 = "guest1@example.ng"
 GUEST_2 = "guest2@example.ng"
 RECEPTIONIST = "frontdesk.lagos@naijastay.ng"
 MANAGER = "manager.ade@naijastay.ng"
+HOUSEKEEPER = "housekeep.funke@naijastay.ng"
 
 TABLES = [
     "payments",
@@ -109,6 +110,16 @@ def set_room_state(room_id: int, state: str) -> None:
     )
 
 
+def set_room_availability(room_id: int, available: bool) -> None:
+    """Flip a room's is_available flag (e.g. simulate an occupied room)."""
+    _run(
+        _execute(
+            "UPDATE rooms SET is_available = :av WHERE id = :rid",
+            {"av": bool(available), "rid": int(room_id)},
+        )
+    )
+
+
 async def _seed_base() -> dict:
     async with AsyncSessionMaker() as session:
         session.add(RoomType(name="standard", base_rate=35000.0, capacity=2))
@@ -120,6 +131,7 @@ async def _seed_base() -> dict:
             (GUEST_2, UserRole.GUEST),
             (RECEPTIONIST, UserRole.RECEPTIONIST),
             (MANAGER, UserRole.MANAGER),
+            (HOUSEKEEPER, UserRole.HOUSEKEEPER),
         ]:
             session.add(User(email=email, password_hash=pw, role=role, is_active=True))
         await session.commit()

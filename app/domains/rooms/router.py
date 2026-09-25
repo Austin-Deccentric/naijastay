@@ -237,7 +237,11 @@ async def patch_room_type(
     return ApiResponse(
         status="success",
         message="Room type updated.",
-        data=RoomTypeOut.model_validate(room_type),
+        data=RoomTypeOut(
+            name=room_type.name,
+            base_rate=room_type.base_rate,
+            capacity=room_type.capacity,
+        ),
     )
 
 

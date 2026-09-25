@@ -7,12 +7,13 @@ POST raw `content=` bytes, not `json=` (which would not let us control the
 exact signed bytes).
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 
 from app.domains.bookings.models import BookingStatus
 from app.domains.payments.service import WebhookAuthError, verify_signature
+from app.core.time import utc_today
 from tests import helpers
 
 URL = "/api/v1/webhooks/payment"
@@ -20,8 +21,8 @@ URL = "/api/v1/webhooks/payment"
 
 def _processing_booking() -> dict:
     """PROCESSING booking on room 201 backed by an active hold (pay scenario)."""
-    check_in = date.today() + timedelta(days=7)
-    check_out = date.today() + timedelta(days=9)
+    check_in = utc_today() + timedelta(days=7)
+    check_out = utc_today() + timedelta(days=9)
     helpers.create_hold(201, helpers.GUEST_1)
     created = helpers.create_booking(
         helpers.GUEST_1, 201, check_in, check_out, BookingStatus.PROCESSING, 130000.0

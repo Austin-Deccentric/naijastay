@@ -6,17 +6,18 @@ or with a past check-in. The booking's own hold is freed; another guest's
 hold is never touched.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from app.domains.bookings.models import BookingStatus
 from app.domains.bookings.sweeps import cancel_stale_processing, delete_expired_holds
+from app.core.time import utc_today
 from tests import helpers
 from tests.helpers import run as _await
 
 
 def _processing(room_id: int = 201, guest: str = helpers.GUEST_1,
                 check_in: date | None = None, nights: int = 2) -> dict:
-    check_in = check_in or (date.today() + timedelta(days=7))
+    check_in = check_in or (utc_today() + timedelta(days=7))
     return helpers.create_booking(
         guest, room_id, check_in, check_in + timedelta(days=nights),
         BookingStatus.PROCESSING, 130000.0,
@@ -43,7 +44,7 @@ def test_fresh_processing_untouched(client):
 
 
 def test_confirmed_untouched(client):
-    today = date.today()
+    today = utc_today()
     created = helpers.create_booking(
         helpers.GUEST_1, 101, today, today + timedelta(days=2),
         BookingStatus.CONFIRMED, 70000.0,
@@ -54,8 +55,10 @@ def test_confirmed_untouched(client):
 
 
 def test_past_check_in_cancelled_even_if_fresh(client):
-    yesterday = date.today() - timedelta(days=1)
-    created = _processing(check_in=yesterday)
+    # Two days back (not one): belt-and-braces alongside the shared
+    # utc_today() clock, so this stays green at any wall-clock time.
+    check_in = utc_today() - timedelta(days=2)
+    created = _processing(check_in=check_in)
     assert _await(cancel_stale_processing()) == 1
     assert helpers.get_booking_status(created["booking_id"]) == "cancelled"
 
@@ -87,8 +90,8 @@ def test_hold_window_included_in_cutoff(client):
 
 def test_room_searchable_after_sweep(client, guest_headers):
     created = _processing()
-    check_in = (date.today() + timedelta(days=7)).isoformat()
-    check_out = (date.today() + timedelta(days=9)).isoformat()
+    check_in = (utc_today() + timedelta(days=7)).isoformat()
+    check_out = (utc_today() + timedelta(days=9)).isoformat()
     params = {"check_in": check_in, "check_out": check_out, "room_type": "deluxe"}
     before = client.get("/rooms/search", params=params, headers=guest_headers)
     assert before.status_code == 200, before.text

@@ -27,7 +27,25 @@ def client():
     # Fresh client per test: the shared object must never hop event loops
     # (each TestClient owns a portal loop; lifespan never runs in tests).
     # Publishing paths no-op gracefully if Redis is unreachable.
-    app.state.redis = create_redis()
+    redis_client = create_redis()
+    try:
+        # GET /rooms/ is cached in Redis while Postgres is re-seeded per
+        # test — flush so no cached rows leak across tests. Best-effort:
+        # the suite must still run if Redis is down. Uses a throwaway
+        # client: a redis client must never hop event loops (each
+        # TestClient owns a portal loop), so the shared client below is
+        # left unconnected until first use inside the request loop.
+        async def _flush() -> None:
+            tmp = create_redis()
+            try:
+                await tmp.flushdb()
+            finally:
+                await tmp.aclose()
+
+        helpers.run(_flush())
+    except Exception:
+        pass
+    app.state.redis = redis_client
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -49,3 +67,8 @@ def receptionist_headers(client):
 @pytest.fixture()
 def manager_headers(client):
     return helpers.login_headers(client, helpers.MANAGER)
+
+
+@pytest.fixture()
+def housekeeper_headers(client):
+    return helpers.login_headers(client, helpers.HOUSEKEEPER)

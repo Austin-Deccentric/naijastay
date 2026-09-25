@@ -25,7 +25,7 @@ class RateMissing(BookingError): ...      # -> 500, room_type has no rate row
 
 class BookingMissing(BookingError): ...   # -> 404
 class NotProcessing(BookingError): ...    # -> 409, not payable/confirmable
-class NotYours(BookingError): ...         # -> 403, чужой booking
+class NotYours(BookingError): ...         # -> 403,  booking
 class HoldGone(BookingError): ...     
 class BookingNotFound(BookingError):
     pass

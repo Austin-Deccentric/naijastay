@@ -1,7 +1,8 @@
 """Room listing / search tests via TestClient."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 
+from app.core.time import utc_today
 from tests import helpers
 
 
@@ -34,8 +35,8 @@ def test_get_all_rooms_invalid_room_state_returns_422(client):
 
 
 def test_search_returns_free_standard_room(client, guest_headers):
-    check_in = (date.today() + timedelta(days=30)).isoformat()
-    check_out = (date.today() + timedelta(days=32)).isoformat()
+    check_in = (utc_today() + timedelta(days=30)).isoformat()
+    check_out = (utc_today() + timedelta(days=32)).isoformat()
     resp = client.get(
         "/rooms/search",
         params={"check_in": check_in, "check_out": check_out, "room_type": "standard"},
@@ -46,7 +47,7 @@ def test_search_returns_free_standard_room(client, guest_headers):
 
 
 def test_search_rejects_bad_dates(client, guest_headers):
-    today = date.today().isoformat()
+    today = utc_today().isoformat()
     resp = client.get(
         "/rooms/search",
         params={"check_in": today, "check_out": today, "room_type": "standard"},
@@ -57,8 +58,8 @@ def test_search_rejects_bad_dates(client, guest_headers):
 
 def test_search_excludes_unavailable_room(client, guest_headers):
     # Room 105 is seeded with is_available=False; it must never appear.
-    check_in = (date.today() + timedelta(days=30)).isoformat()
-    check_out = (date.today() + timedelta(days=32)).isoformat()
+    check_in = (utc_today() + timedelta(days=30)).isoformat()
+    check_out = (utc_today() + timedelta(days=32)).isoformat()
     resp = client.get(
         "/rooms/search",
         params={"check_in": check_in, "check_out": check_out, "room_type": "standard"},
