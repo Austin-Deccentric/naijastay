@@ -20,6 +20,7 @@ from app.core.permissions import (
     require_manager,
 )
 from app.core.rate_limit import limiter
+from app.core.response import ApiResponse
 from app.db.session import SessionDep
 from app.domains.rooms.models import RoomState
 from app.domains.rooms.schemas import (
@@ -41,7 +42,11 @@ from app.domains.rooms.service import (
     search_available_rooms,
     update_room_type,
 )
-from app.domains.rooms.streaming import room_event_generator, unavailable_events
+from app.domains.rooms.streaming import (
+    publish_booking_room,
+    room_event_generator,
+    unavailable_events,
+)
 from app.domains.users.models import User
 from app.integrations.cache import (
     ROOMS_LIST_TTL,
@@ -83,7 +88,7 @@ async def get_all_rooms(
 
 @router.get(
     "/available",
-    response_model=list[RoomResponse],
+    response_model=ApiResponse[list[RoomResponse]],
 )
 async def get_available_rooms_for_day(
     session: SessionDep,
@@ -105,17 +110,21 @@ async def get_available_rooms_for_day(
             examples=["standard", "deluxe", "executive-suite"],
         ),
     ] = None,
-) -> list[RoomResponse]:
+) -> ApiResponse[list[RoomResponse]]:
     rooms = await get_available_rooms(
         session=session,
         room_date=room_date,
         room_type=room_type,
     )
 
-    return [
-        RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
-        for room in rooms
-    ]
+    return ApiResponse(
+        status="success",
+        message="Available rooms retrieved.",
+        data=[
+            RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
+            for room in rooms
+        ],
+    )
 
 @router.get("/search", response_model=list[AvailableRoomResponse])
 async def search_rooms(
@@ -154,7 +163,7 @@ async def search_rooms(
     )
     return Response(content=cached, media_type="application/json")
 
-@router.get("/occupancy", response_model=OccupancyReport)
+@router.get("/occupancy", response_model=ApiResponse[OccupancyReport])
 async def occupancy_report(
     session: SessionDep,
     _: Annotated[User, Depends(require_manager)],
@@ -165,39 +174,50 @@ async def occupancy_report(
             examples=["2026-09-25"],
         ),
     ] = None,
-) -> OccupancyReport:
-    return await get_occupancy_report(
+) -> ApiResponse[OccupancyReport]:
+    report = await get_occupancy_report(
         session=session,
         report_date=report_date,
     )
+    return ApiResponse(
+        status="success",
+        message="Occupancy report generated.",
+        data=report,
+    )
 
-@router.patch("/{room_id}/clean", response_model=RoomResponse)
+@router.patch("/{room_id}/clean", response_model=ApiResponse[RoomResponse])
 async def mark_clean(
     room_id: Annotated[
         int,
         Path(gt=0),
     ],
     session: SessionDep,
+    request: Request,
     _: Annotated[
         User,
         Depends(require_housekeeper),
     ],
-) -> RoomResponse:
+) -> ApiResponse[RoomResponse]:
     try:
-        room = await mark_room_clean(room_id=room_id, session=session,
+        room, already_clean = await mark_room_clean(room_id=room_id, session=session,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-   
-    return RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available)
 
-@router.patch("/room-types/{name}", response_model=RoomTypeOut)
+    await publish_booking_room(request, session, room.id)
+    return ApiResponse(
+        status="success",
+        message="Room already clean." if already_clean else "Room marked clean.",
+        data=RoomResponse(id=room.id, room_type=room.room_type, is_available=room.is_available),
+    )
+
+@router.patch("/room-types/{name}", response_model=ApiResponse[RoomTypeOut])
 async def patch_room_type(
     name: Annotated[str,Path(min_length=3, max_length=128)],
     data: RoomTypeUpdate,
     session: SessionDep,
     _: Annotated[User, Depends(require_manager)]
-):
+) -> ApiResponse[RoomTypeOut]:
     if not data.model_dump(exclude_unset=True):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, 
@@ -205,7 +225,7 @@ async def patch_room_type(
         )
 
     try:
-        return await update_room_type(
+        room_type = await update_room_type(
             session=session, name=name, 
             data=data
         )
@@ -214,6 +234,11 @@ async def patch_room_type(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+    return ApiResponse(
+        status="success",
+        message="Room type updated.",
+        data=RoomTypeOut.model_validate(room_type),
+    )
 
 
 @router.get("/stream")

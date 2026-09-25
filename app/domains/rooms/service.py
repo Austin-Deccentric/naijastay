@@ -4,6 +4,7 @@ from pydantic import TypeAdapter
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.time import utc_today
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.rooms.models import Room, RoomNight, RoomState, RoomType
 from app.domains.rooms.schemas import (
@@ -107,7 +108,7 @@ async def get_available_rooms(
     room_type: str | None = None,
 ) -> list[Room]:
     if room_date is None:
-        room_date = date.today()
+        room_date = utc_today()
 
     conflicting_bookings = select(Booking.room_id).where(
         Booking.booking_status != BookingStatus.CANCELLED,
@@ -203,7 +204,7 @@ async def get_occupancy_report(
     report_date: date | None = None,
 ) -> OccupancyReport:
     if report_date is None:
-        report_date = date.today()
+        report_date = utc_today()
     total_result = await session.exec(select(func.count(Room.id)))
 
     total_rooms = total_result.one()
