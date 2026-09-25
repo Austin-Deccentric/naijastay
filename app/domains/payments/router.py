@@ -7,6 +7,7 @@ from sqlmodel import select
 
 from app.core.permissions import require_guest, require_receptionist
 from app.core.rate_limit import limiter
+from app.core.response import ApiResponse
 from app.db.session import SessionDep
 from app.domains.bookings.models import Booking
 from app.domains.bookings.service import (
@@ -33,7 +34,7 @@ from app.domains.users.models import User
 logger = logging.getLogger("naijastay")
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
-_PAY_STATUS = {BookingMissing: 404, NotProcessing: 409, NotYours: 403}
+_PAY_STATUS = {BookingMissing: 404, NotProcessing: 409, NotYours: 403, HoldGone: 409}
 _OFFLINE_STATUS = {
     BookingMissing: 404,
     NotProcessing: 409,
@@ -49,34 +50,39 @@ _ERROR_STATUS = {
     AmountMismatch: 422,
 }
 
-@router.post("/pay/{booking_id}", response_model=PayOut)
+@router.post("/pay/{booking_id}", response_model=ApiResponse[PayOut])
 @limiter.limit("5/minute")
 async def pay_for_booking(
     request: Request,                                    
     booking_id: Annotated[int, Path(gt=0)],
     session: SessionDep,
     guest: Annotated[User, Depends(require_guest)],      # guests only, per spec
-):
+) -> ApiResponse[PayOut]:
     """Run the mock provider script against this guest's booking."""
     try:
-        return await pay_booking(booking_id, guest, session)
+        payout, already_paid = await pay_booking(booking_id, guest, session)
     except BookingError as exc:
         raise HTTPException(
             status_code=_PAY_STATUS.get(type(exc), 500), detail=str(exc)
         ) from exc
+    return ApiResponse(
+        status="success",
+        message="Payment already completed." if already_paid else "Payment completed.",
+        data=payout,
+    )
 
 
 root_router = APIRouter(tags=["Webhooks"])
 
 
-@router.post("/offline/{booking_id}", response_model=PayOut, status_code=status.HTTP_201_CREATED)
+@router.post("/offline/{booking_id}", response_model=ApiResponse[PayOut], status_code=status.HTTP_201_CREATED)
 async def record_offline_payment_for_booking(
     request: Request,
     booking_id: Annotated[int, Path(gt=0)],
     data: OfflinePaymentIn,
     session: SessionDep,
     staff: Annotated[User, Depends(require_receptionist)],  # receptionists only
-):
+) -> ApiResponse[PayOut]:
     """Record a cash/bank-transfer payment collected by front-desk staff.
 
     No hold required (walk-ins confirmable). Exact amount only. Writes no
@@ -97,12 +103,16 @@ async def record_offline_payment_for_booking(
     booking = await session.get(Booking, payment.booking_id)
     if booking is not None:
         await publish_booking_room(request, session, booking.room_id)
-    return PayOut(
-        booking_id=payment.booking_id,
-        reference=booking.ref if booking and booking.ref else f"BOOK-{payment.booking_id}",
-        amount=payment.amount,
-        booking_status="confirmed",
-        method=payment.method.value,
+    return ApiResponse(
+        status="success",
+        message="Offline payment recorded.",
+        data=PayOut(
+            booking_id=payment.booking_id,
+            reference=booking.ref if booking and booking.ref else f"BOOK-{payment.booking_id}",
+            amount=payment.amount,
+            booking_status="confirmed",
+            method=payment.method.value,
+        ),
     )
 
 

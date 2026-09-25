@@ -42,14 +42,25 @@ async def pay_booking(
     booking_id: int, 
     guest: User, 
     session: AsyncSession
-) -> PayOut:
+) -> tuple[PayOut, bool]:
+    """Pay for a booking. Returns (payout, already_paid).
+
+    already_paid is True when the booking was already CONFIRMED, so the
+    router can message the idempotent replay distinctly.
+    """
     booking = await session.get(Booking, booking_id)
+   
     if booking is None:
         raise BookingMissing("Booking not found.")
+
+    if booking.guest_email != guest.email: raise NotYours("You can only pay for your own booking.")
+    if booking.booking_status == BookingStatus.CONFIRMED:
+        return PayOut(booking_id=booking.booking_id, reference=booking.ref,
+                      amount=booking.total_amount,
+                      booking_status=booking.booking_status.value), True
     if booking.booking_status != BookingStatus.PROCESSING:
-        raise NotProcessing("Only processing bookings can be paid for.")
-    if booking.guest_email != guest.email:
-        raise NotYours("You can only pay for your own booking.")
+        raise NotProcessing("Only processing bookings can be paid for, ")
+    
 
     proc = await asyncio.create_subprocess_exec(
         sys.executable, str(SCRIPT),
@@ -64,9 +75,13 @@ async def pay_booking(
         raise HTTPException(502, "Payment provider unreachable.")  # or a BookingError
 
     await session.refresh(booking)
+    if booking.booking_status == BookingStatus.CANCELLED:
+        raise HoldGone("Hold expired before payment; booking cancelled.")
+    if booking.booking_status != BookingStatus.CONFIRMED:
+        raise NotProcessing("Payment attempt did not confirm the booking.")
     return PayOut(booking_id=booking.booking_id, reference=booking.ref,
                   amount=booking.total_amount,
-                  booking_status=booking.booking_status.value)
+                  booking_status=booking.booking_status.value), False
 
 
 def verify_signature(raw_body: bytes, signature: str) -> None:
