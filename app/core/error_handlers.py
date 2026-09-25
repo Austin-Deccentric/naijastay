@@ -15,8 +15,8 @@ def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
         if key.lower() 
         not in {
             "content-length",
-            "content-tyep",
-            "content-encodeing",
+            "content-type",
+            "content-encoding",
             "etag"
         }
     }
@@ -24,7 +24,7 @@ def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
     return JSONResponse(
         status_code=429,
         content={
-            "measge": "To many request please try agai later.",
+            "measge": "To many request please try again later.",
             "detail": f"Rate limit exceeded: {exc.detail}", 
             "retry_after": int(retry_after) if retry_after is not None else None
         },

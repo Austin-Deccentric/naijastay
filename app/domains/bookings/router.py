@@ -42,6 +42,7 @@ from app.domains.bookings.service import (
 from app.domains.rooms.service import get_room
 from app.domains.rooms.streaming import publish_booking_room
 from app.domains.users.models import User
+from sqlalchemy.exc import IntegrityError
 
 _ERROR_STATUS = {
     RoomMissing: status.HTTP_404_NOT_FOUND,
@@ -92,7 +93,11 @@ async def hold_room(
 
     session.add(registered_hold)
 
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=409, detail="Room already held")
     await session.refresh(registered_hold)
 
     return ApiResponse(status="success", message="Room held.", data=registered_hold)
