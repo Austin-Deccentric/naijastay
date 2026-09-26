@@ -148,37 +148,48 @@ async def record_offline_payment(
 
 
 # Main payment and Booking confirmation logic flow
+async def _record_event(session: AsyncSession, event: PaymentWebhookEvent) -> bool:
+    """Insert the ProcessedEvent row. True if this delivery won the race.
+
+    Concurrent identical deliveries both pass the pre-check above, so the
+    insert itself is the arbiter: loser gets False and must answer
+    "duplicate" (HTTP 200) instead of 500ing on the PK clash.
+    """
+    session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
+                               reference=event.reference))
+    try:
+        await session.commit()
+        return True
+    except IntegrityError:
+        await session.rollback()
+        return False
+
+
 async def process_payment_event(session: AsyncSession, event: PaymentWebhookEvent) -> str:
 
     if await session.get(ProcessedEvent, event.event_id) is not None:
-        return "duplicate"   
+        return "duplicate"
 
     if event.type != "payment.succeeded":
-        session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
-                                   reference=event.reference))
-        await session.commit()
+        if not await _record_event(session, event):
+            return "duplicate"
         return "ignored"
-        
+
 
     booking = (await session.exec(
         select(Booking).where(Booking.ref == event.reference).with_for_update()
     )).first()                              # row lock: second reader waits for first writer
     if booking is None:
         # NOTE: with_for_update found nothing, so no lock held; plain insert below.
-        session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
-                                   reference=event.reference))
-        await session.commit()
+        if not await _record_event(session, event):
+            return "duplicate"
         return "orphan"                     # 200 so the provider stops retrying (log at router)
 
     if booking.booking_status == BookingStatus.CONFIRMED:
-        session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
-                                   reference=event.reference))
-        await session.commit()
+        await _record_event(session, event)
         return "duplicate"
     if booking.booking_status != BookingStatus.PROCESSING:
-        session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
-                                   reference=event.reference))
-        await session.commit()
+        await _record_event(session, event)
         return "duplicate"                  # CANCELLED stays cancelled
 
     if event.currency != "NGN" or abs(event.amount - booking.total_amount) > 0.01:
@@ -191,9 +202,10 @@ async def process_payment_event(session: AsyncSession, event: PaymentWebhookEven
             or hold.expires_at.replace(tzinfo=UTC) <= datetime.now(UTC)
             or hold.guest_email.strip().lower() != booking.guest_email.strip().lower()):
         booking.booking_status = BookingStatus.CANCELLED
-        session.add(ProcessedEvent(event_id=event.event_id, event_type=event.type,
-                                   reference=event.reference))
+        session.add(booking)
         await session.commit()
+        if not await _record_event(session, event):
+            return "duplicate"  # concurrent delivery already recorded it
         logger.error("Paid booking %s lost its hold; cancelled, refund flow needed.",
                      event.reference)
         raise HoldGone("Hold expired before payment; booking cancelled.")
