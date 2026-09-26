@@ -2,7 +2,7 @@ import logging
 import time
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -56,10 +56,10 @@ async def add_request_id_and_timing(request: Request, call_next):
 
     try:
         response = await call_next(request)
-    except Exception:
+    except Exception as exec:
         elapsed = time.perf_counter() - start_time
         logger.exception("request failed method=%s path=%s request_id=%s duration=%.4fs", request.method, request.url.path, request_id, elapsed)
-        raise
+        return Response(status_code=500, content={"error": str(exec)})
 
     elapsed = time.perf_counter() - start_time
     response.headers["X-Request-ID"] = request_id
@@ -80,13 +80,20 @@ async def add_request_id_and_timing(request: Request, call_next):
 app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)  # type: ignore
 
 
-app.include_router(auth_router)
-app.include_router(users_router)
-app.include_router(rooms_router)
-app.include_router(bookings_router)
-app.include_router(holds_router)
-app.include_router(payments_router)
+# app.include_router(auth_router)
+# app.include_router(users_router)
+# app.include_router(rooms_router)
+# app.include_router(bookings_router)
+# app.include_router(holds_router)
+# app.include_router(payments_router)
 app.include_router(payments_webhook_router)
+
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
+app.include_router(rooms_router, prefix="/api/v1")
+app.include_router(bookings_router, prefix="/api/v1")
+app.include_router(holds_router, prefix="/api/v1")
+app.include_router(payments_router, prefix="/api/v1")
 
 
 

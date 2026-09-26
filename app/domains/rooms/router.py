@@ -247,7 +247,10 @@ async def patch_room_type(
 
 @router.get("/stream")
 @limiter.exempt  # long-lived SSE: must not count against the 10/min rate limit
-async def stream_rooms(request: Request):
+async def stream_rooms(
+    request: Request,
+    _: Annotated[User, Depends(require_manager)]
+):
     """Live changes only. Snapshot comes from GET /rooms (Postgres)"""
     client: aioredis.Redis | None = getattr(request.app.state, "redis", None)
     if client is None:

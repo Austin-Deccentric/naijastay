@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, model_validator
 
 from app.domains.rooms.models import RoomState
 
@@ -29,12 +29,12 @@ class AvailableRoomResponse(BaseModel):
 
 class RoomTypeOut(BaseModel):
     name: str
-    base_rate: int
+    base_rate: float
     capacity: int
 
 class RoomTypeUpdate(BaseModel):
     base_rate: PositiveFloat | None = None
-    capacity: int | None = None
+    capacity: PositiveInt | None = None
 
     model_config = {"extra": "forbid"}
 
