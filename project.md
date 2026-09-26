@@ -50,11 +50,12 @@ Same database, different hostname per context. This is normal Compose behavior.
 Run tests with:
 
 ```bash
-uv run pytest -q
+make test
 ```
 
-One side note on tests. Tests share your dev database and wipe it per test.
-Seed after testing, not before. A separate test database is still open work.
+One side note on tests. Tests run against a dedicated test database
+(`9jastay_test`, see `make test-db`) and wipe it per test, so your dev data
+is never touched. Test Redis lives on db index 1 for the same reason.
 
 ## The Journey of a Booking
 
@@ -149,7 +150,7 @@ per cache miss, never per hit.
 
 ## Still Open
 
-Separate test database so suites stop wiping dev data. Real payment provider
+Real payment provider
 (the mock ships in the image, marked for removal). Health checks that verify
 the database, not just the process. Live stream events for cleaning and room
 type changes. Envelope shape for the two cached room reads. API versioning

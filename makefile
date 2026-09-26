@@ -1,4 +1,4 @@
-.PHONY: install dev run migrate makemigration downgrade current history test seed seed-yes clean
+.PHONY: install dev run migrate makemigration downgrade current history test test-db seed seed-yes clean
 
 install:           ## install deps
 	uv sync
@@ -24,7 +24,10 @@ current:           ## show current revision
 history:           ## show revision history
 	uv run alembic history
 
-test:              ## run test suite
+test-db:          ## create + migrate test database (idempotent, safe)
+	uv run python scripts/make_test_db.py
+
+test: test-db        ## run test suite against test database
 	uv run pytest -q
 
 seed:              ## seed dev database (destructive, asks first)
