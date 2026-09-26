@@ -23,6 +23,7 @@ class GuestNotFound(BookingError): ...    # -> 404, receptionist's email unknown
 class NotAGuest(BookingError): ...        # -> 422, email belongs to staff
 class BadDates(BookingError): ...         # -> 422
 class RateMissing(BookingError): ...      # -> 500, room_type has no rate row
+class ProviderUnreachable(BookingError): ...  # -> 502, provider down
 
 class BookingMissing(BookingError): ...   # -> 404
 class NotProcessing(BookingError): ...    # -> 409, not payable/confirmable

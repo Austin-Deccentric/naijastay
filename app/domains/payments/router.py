@@ -16,6 +16,7 @@ from app.domains.bookings.service import (
     HoldGone,
     NotProcessing,
     NotYours,
+    ProviderUnreachable,
     RoomUnavailable,
 )
 from app.domains.payments.schema import OfflinePaymentIn, PaymentWebhookEvent, PayOut
@@ -34,7 +35,7 @@ from app.domains.users.models import User
 logger = logging.getLogger("naijastay")
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
-_PAY_STATUS = {BookingMissing: 404, NotProcessing: 409, NotYours: 403, HoldGone: 409}
+_PAY_STATUS = {BookingMissing: 404, NotProcessing: 409, NotYours: 403, HoldGone: 409, ProviderUnreachable: 502}
 _OFFLINE_STATUS = {
     BookingMissing: 404,
     NotProcessing: 409,
@@ -48,6 +49,7 @@ _ERROR_STATUS = {
     HoldGone: 409,
     WebhookAuthError: 401,
     AmountMismatch: 422,
+    RoomUnavailable: 409,
 }
 
 @router.post("/pay/{booking_id}", response_model=ApiResponse[PayOut])

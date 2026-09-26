@@ -6,7 +6,6 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -18,6 +17,7 @@ from app.domains.bookings.service import (
     HoldGone,
     NotProcessing,
     NotYours,
+    ProviderUnreachable,
     RoomUnavailable,
 )
 from app.domains.payments.models import Payment, PaymentMethod, ProcessedEvent
@@ -72,7 +72,7 @@ async def pay_booking(
     )
     await proc.wait()          # script runs, webhook gets served meanwhile (separate process)
     if proc.returncode != 0:
-        raise HTTPException(502, "Payment provider unreachable.")  # or a BookingError
+        raise ProviderUnreachable("Payment provider unreachable.")
 
     await session.refresh(booking)
     if booking.booking_status == BookingStatus.CANCELLED:
@@ -225,5 +225,5 @@ async def process_payment_event(session: AsyncSession, event: PaymentWebhookEven
         await session.rollback()
         if await session.get(ProcessedEvent, event.event_id) is not None:
             return "duplicate"              
-        raise                               # genuine night clash -> 409
+        raise  RoomUnavailable("Room is no longer available for these dates.")  # genuine night clash -> 409
     return "confirmed"
