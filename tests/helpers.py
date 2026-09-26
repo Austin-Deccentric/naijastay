@@ -1,12 +1,14 @@
-"""Shared DB + webhook-signing helpers for the TestClient suite.
+"""Shared DB + webhook-signing helpers for the async (anyio) suite.
 
 The webhook secret is read from `.env` via `app.core.config.settings`
 (`WEBHOOK_SECRET`), never hardcoded — see `tests/README.md`.
+
+All helpers are native async: tests `await` them on the test's own event
+loop. No `asyncio.run` anywhere (a second loop would strand clients).
 """
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -15,7 +17,6 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.security import hash_password
 from app.db.session import AsyncSessionMaker
 from app.domains.bookings.models import Booking, BookingStatus, Hold
 from app.domains.rooms.models import Room, RoomType
@@ -76,16 +77,7 @@ def make_event(
     }
 
 
-def _run(coro):
-    return asyncio.run(coro)
-
-
-def run(coro):
-    """Await an async callable from sync test code."""
-    return _run(coro)
-
-
-async def _reset_db() -> None:
+async def reset_db() -> None:
     async with AsyncSessionMaker() as session:
         for table in TABLES:
             regclass = (await session.execute(text(f"SELECT to_regclass('{table}')"))).scalar()
@@ -95,37 +87,28 @@ async def _reset_db() -> None:
         await session.commit()
 
 
-def reset_db() -> None:
-    _run(_reset_db())
-
-
-def set_room_state(room_id: int, state: str) -> None:
+async def set_room_state(room_id: int, state: str) -> None:
     """Set a room's housekeeping state ('clean' | 'dirty')."""
     assert state in {"clean", "dirty"}, state
-    _run(
-        _execute(
-            "UPDATE rooms SET room_state = :state WHERE id = :rid",
-            {"state": state.upper(), "rid": int(room_id)},
-        )
+    await _execute(
+        "UPDATE rooms SET room_state = :state WHERE id = :rid",
+        {"state": state.upper(), "rid": int(room_id)},
     )
 
 
-def set_room_availability(room_id: int, available: bool) -> None:
+async def set_room_availability(room_id: int, available: bool) -> None:
     """Flip a room's is_available flag (e.g. simulate an occupied room)."""
-    _run(
-        _execute(
-            "UPDATE rooms SET is_available = :av WHERE id = :rid",
-            {"av": bool(available), "rid": int(room_id)},
-        )
+    await _execute(
+        "UPDATE rooms SET is_available = :av WHERE id = :rid",
+        {"av": bool(available), "rid": int(room_id)},
     )
 
 
-async def _seed_base() -> dict:
+async def seed_base(password_hash: str) -> dict:
     async with AsyncSessionMaker() as session:
         session.add(RoomType(name="standard", base_rate=35000.0, capacity=2))
         session.add(RoomType(name="deluxe", base_rate=65000.0, capacity=3))
         await session.commit()
-        pw = hash_password(PASSWORD)
         for email, role in [
             (GUEST_1, UserRole.GUEST),
             (GUEST_2, UserRole.GUEST),
@@ -133,7 +116,7 @@ async def _seed_base() -> dict:
             (MANAGER, UserRole.MANAGER),
             (HOUSEKEEPER, UserRole.HOUSEKEEPER),
         ]:
-            session.add(User(email=email, password_hash=pw, role=role, is_active=True))
+            session.add(User(email=email, password_hash=password_hash, role=role, is_active=True))
         await session.commit()
         for room_id, room_type, available in [
             (101, "standard", True),
@@ -147,11 +130,7 @@ async def _seed_base() -> dict:
     return {"guest1": GUEST_1, "guest2": GUEST_2}
 
 
-def seed_base() -> dict:
-    return _run(_seed_base())
-
-
-async def _create_hold(
+async def create_hold(
     room_id: int,
     guest_email: str,
     *,
@@ -170,11 +149,7 @@ async def _create_hold(
         await session.commit()
 
 
-def create_hold(room_id: int, guest_email: str, *, minutes: int = 10, consumed: bool = False) -> None:
-    _run(_create_hold(room_id, guest_email, minutes=minutes, consumed=consumed))
-
-
-async def _create_booking(
+async def create_booking(
     guest_email: str,
     room_id: int,
     check_in: date,
@@ -201,31 +176,18 @@ async def _create_booking(
         }
 
 
-def create_booking(
-    guest_email: str,
-    room_id: int,
-    check_in: date,
-    check_out: date,
-    status: BookingStatus,
-    total: float,
-) -> dict:
-    return _run(_create_booking(guest_email, room_id, check_in, check_out, status, total))
-
-
 async def _execute(sql: str, params: dict | None = None) -> None:
     async with AsyncSessionMaker() as session:
         await session.execute(text(sql), params or {})
         await session.commit()
 
 
-def backdate_booking(booking_id: int, minutes_ago: int) -> None:
+async def backdate_booking(booking_id: int, minutes_ago: int) -> None:
     """Move a booking's created_at into the past (sweeper fixtures)."""
-    _run(
-        _execute(
-            "UPDATE bookings SET created_at = NOW() - make_interval(mins => :mins) "
-            "WHERE booking_id = :bid",
-            {"mins": minutes_ago, "bid": int(booking_id)},
-        )
+    await _execute(
+        "UPDATE bookings SET created_at = NOW() - make_interval(mins => :mins) "
+        "WHERE booking_id = :bid",
+        {"mins": minutes_ago, "bid": int(booking_id)},
     )
 
 
@@ -234,19 +196,19 @@ async def _scalar(sql: str):
         return (await session.execute(text(sql))).scalar()
 
 
-def count(table: str, where: str = "") -> int:
-    return int(_run(_scalar(f"SELECT COUNT(*) FROM {table} {where}")) or 0)
+async def count(table: str, where: str = "") -> int:
+    return int(await _scalar(f"SELECT COUNT(*) FROM {table} {where}") or 0)
 
 
-def get_booking_status(booking_id: int) -> str | None:
-    value = _run(_scalar(f"SELECT booking_status FROM bookings WHERE booking_id = {int(booking_id)}"))
+async def get_booking_status(booking_id: int) -> str | None:
+    value = await _scalar(f"SELECT booking_status FROM bookings WHERE booking_id = {int(booking_id)}")
     # Postgres returns the enum *label* (e.g. 'PROCESSING'); normalize to the
     # lowercase values the API exposes (e.g. 'processing').
     return str(value).lower() if value is not None else None
 
 
-def login_headers(client, email: str, password: str = PASSWORD) -> dict:
-    resp = client.post("/auth/login", data={"username": email, "password": password})
+async def login_headers(client, email: str, password: str = PASSWORD) -> dict:
+    resp = await client.post("/api/v1/auth/login", data={"username": email, "password": password})
     assert resp.status_code == 200, f"login failed for {email}: {resp.status_code} {resp.text}"
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
