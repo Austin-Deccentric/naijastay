@@ -10,6 +10,8 @@ from datetime import date, timedelta
 
 import pytest
 
+pytestmark = pytest.mark.anyio
+
 from app.core.time import utc_today
 from app.db.session import AsyncSessionMaker
 from app.domains.bookings.models import BookingStatus
@@ -17,7 +19,6 @@ from app.domains.bookings.service import HoldGone, NotProcessing
 from app.domains.payments.service import pay_booking
 from app.domains.users.service import get_user_by_email
 from tests import helpers
-from tests.helpers import run as _await
 
 
 class _FakeProc:
@@ -56,9 +57,9 @@ async def _stub_subprocess_cancelling(*args, **kwargs):
     return _FakeProc()
 
 
-def _processing_booking() -> dict:
+async def _processing_booking() -> dict:
     check_in = utc_today() + timedelta(days=7)
-    return helpers.create_booking(
+    return await helpers.create_booking(
         helpers.GUEST_1, 201, check_in, check_in + timedelta(days=2),
         BookingStatus.PROCESSING, 130000.0,
     )
@@ -70,20 +71,20 @@ async def _pay(booking_id: int):
         return await pay_booking(booking_id, guest, session)
 
 
-def test_cancelled_after_provider_raises_holdgone(client, monkeypatch):
+async def test_cancelled_after_provider_raises_holdgone(client, monkeypatch):
     """Webhook cancelled the booking mid-flight (hold lost): 409, not 200."""
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _stub_subprocess_cancelling)
-    created = _processing_booking()
+    created = await _processing_booking()
     with pytest.raises(HoldGone, match="Hold expired before payment"):
-        _await(_pay(created["booking_id"]))
-    assert helpers.get_booking_status(created["booking_id"]) == "cancelled"
-    assert helpers.count("payments", f"WHERE booking_id = {created['booking_id']}") == 0
+        await _pay(created["booking_id"])
+    assert await helpers.get_booking_status(created["booking_id"]) == "cancelled"
+    assert await helpers.count("payments", f"WHERE booking_id = {created['booking_id']}") == 0
 
 
-def test_unconfirmed_after_provider_raises_not_processing(client, monkeypatch):
+async def test_unconfirmed_after_provider_raises_not_processing(client, monkeypatch):
     """Provider round-trip left the booking PROCESSING: distinct 409 message."""
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _stub_subprocess)
-    created = _processing_booking()
+    created = await _processing_booking()
     with pytest.raises(NotProcessing, match="did not confirm"):
-        _await(_pay(created["booking_id"]))
-    assert helpers.get_booking_status(created["booking_id"]) == "processing"
+        await _pay(created["booking_id"])
+    assert await helpers.get_booking_status(created["booking_id"]) == "processing"
