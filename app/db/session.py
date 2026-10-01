@@ -5,7 +5,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
+from app.core.config import normalize_db_url, settings
 
 DATABASE_URL = settings.database_url
 
@@ -14,8 +14,7 @@ if DATABASE_URL is None:
 
 # Accept plain postgres URLs (e.g. Render's managed DB) and coerce them to the
 # async psycopg3 driver that SQLAlchemy's async engine requires.
-if DATABASE_URL.split("://", 1)[0] in {"postgres", "postgresql"}:
-    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL.split("://", 1)[1]
+DATABASE_URL = normalize_db_url(DATABASE_URL)
 
 engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
 

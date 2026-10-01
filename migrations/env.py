@@ -4,7 +4,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
-from app.core.config import settings
+from app.core.config import normalize_db_url, settings
 from app.domains.bookings import models as booking_schema  # noqa: F401
 from app.domains.rooms import models as room_schema  # noqa: F401
 from app.domains.users import models as user_schema  # noqa: F401
@@ -43,7 +43,7 @@ def run_migrations_offline() -> None:
 
     """
     context.configure(
-        url=settings.database_url,
+        url=normalize_db_url(settings.database_url),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -61,7 +61,7 @@ def run_migrations_online() -> None:
 
     """
 
-    config.set_main_option("sqlalchemy.url", settings.database_url or "")
+    config.set_main_option("sqlalchemy.url", normalize_db_url(settings.database_url or ""))
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

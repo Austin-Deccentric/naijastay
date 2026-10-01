@@ -2,6 +2,20 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def normalize_db_url(url: str) -> str:
+    """Coerce bare postgres URLs to the psycopg3 driver.
+
+    Managed providers (Render, Supabase, Neon) hand out driverless
+    ``postgresql://`` URLs, which SQLAlchemy maps to psycopg2. The image
+    only ships psycopg3, so rewrite the scheme explicitly. URLs that
+    already name a driver pass through untouched.
+    """
+    scheme, sep, rest = url.partition("://")
+    if sep and scheme in {"postgres", "postgresql"}:
+        return f"postgresql+psycopg://{rest}"
+    return url
+
+
 class Settings(BaseSettings):
     database_url: str  = Field(min_length=1)
     access_token_expire_minutes: int  = Field(default=60, gt=0)

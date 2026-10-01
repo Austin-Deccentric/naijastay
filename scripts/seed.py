@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import settings
+from app.core.config import normalize_db_url, settings
 from app.core.security import hash_password
 from app.core.time import utc_today
 from app.domains.bookings.models import Booking, BookingStatus, Hold
@@ -110,10 +110,7 @@ def resolve_database_url(override: str | None) -> str:
     url = override or settings.database_url
     if not url:
         raise ValueError("DATABASE_URL is not set (use .env or --database-url).")
-    scheme = url.split("://", 1)[0]
-    if scheme in {"postgres", "postgresql"}:
-        url = "postgresql+psycopg://" + url.split("://", 1)[1]
-    return url
+    return normalize_db_url(url)
 
 
 async def reset_tables(session: AsyncSession) -> None:
