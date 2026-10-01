@@ -6,4 +6,5 @@ env/
 venv
 .env
 .DS_Store
-uv.lock
+# uv.lock is intentionally tracked: the Dockerfile copies it and
+# `uv sync --locked` fails the build if it is missing or out of sync.
