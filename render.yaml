@@ -1,0 +1,57 @@
+# NaijaStay on Render — free-tier Blueprint.
+#
+# Provisions: web service (Docker) + managed Postgres + Key Value (Redis).
+#
+# SEED_ON_BOOT=true means every boot runs scripts/seed.py --reset --yes,
+# which is TRUNCATE ... CASCADE. Correct for a throwaway demo, destructive
+# if this Blueprint is ever pointed at data you care about. The app's
+# entrypoint keeps seeding behind the env flag (default false), so removing
+# this line restores safe behavior.
+services:
+  - type: web
+    name: naijastay-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: naijastay-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: naijastay-redis
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 60
+      - key: RATE_LIMIT_GLOBAL
+        value: 30/minute
+      - key: RATE_LIMIT_LOGIN
+        value: 10/minute
+      - key: RATE_LIMIT_REGISTER
+        value: 20/hour
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: SEED_ON_BOOT
+        value: "true"
+      # CORS_ALLOWED_ORIGINS intentionally unset (app defaults to None).
+      # /docs works same-origin. Set it only if a browser frontend needs
+      # cross-origin access. See DEPLOY.md.
+
+  - type: keyvalue
+    name: naijastay-redis
+    plan: free
+    ipAllowList: [] # internal connections only
+
+databases:
+  - name: naijastay-db
+    plan: free
+    databaseName: naijastay
+    postgresMajorVersion: "17"
