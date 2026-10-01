@@ -16,6 +16,7 @@
 
 import logging
 import os
+from collections.abc import AsyncGenerator
 from urllib.parse import urlparse
 
 os.environ["DATABASE_URL"] = (
@@ -69,7 +70,7 @@ def password_hash() -> str:
 
 
 @pytest.fixture()
-async def client(password_hash):
+async def client(password_hash) -> AsyncGenerator[AsyncClient]:
     await helpers.reset_db()
     await helpers.seed_base(password_hash)
     # Real docker redis, flushed per test so no cached rows leak across

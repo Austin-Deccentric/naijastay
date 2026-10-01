@@ -14,6 +14,7 @@ import hmac
 import json
 from datetime import UTC, date, datetime, timedelta
 
+from httpx import AsyncClient
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -207,7 +208,7 @@ async def get_booking_status(booking_id: int) -> str | None:
     return str(value).lower() if value is not None else None
 
 
-async def login_headers(client, email: str, password: str = PASSWORD) -> dict:
+async def login_headers(client: AsyncClient, email: str, password: str = PASSWORD) -> dict:
     resp = await client.post("/api/v1/auth/login", data={"username": email, "password": password})
     assert resp.status_code == 200, f"login failed for {email}: {resp.status_code} {resp.text}"
     token = resp.json()["access_token"]

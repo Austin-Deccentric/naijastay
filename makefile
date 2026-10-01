@@ -4,7 +4,7 @@ install:           ## install deps
 	uv sync
 
 dev:               ## run dev server (reload)
-	uv run fastapi dev app.main:app
+	uv run fastapi dev 
 
 run:               ## run server (prod)
 	uv run fastapi run app.main:app

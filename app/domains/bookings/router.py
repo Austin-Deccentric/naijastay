@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from sqlalchemy.exc import IntegrityError
 
 from app.core.permissions import (
     require_guest,
@@ -18,7 +19,6 @@ from app.domains.bookings.schema import (
 )
 from app.domains.bookings.service import (
     AlreadyCheckedIn,
-    AlreadyCheckedOut,
     BadDates,
     BookingError,
     BookingNotCheckedIn,
@@ -42,7 +42,6 @@ from app.domains.bookings.service import (
 from app.domains.rooms.service import get_room
 from app.domains.rooms.streaming import publish_booking_room
 from app.domains.users.models import User
-from sqlalchemy.exc import IntegrityError
 
 _ERROR_STATUS = {
     RoomMissing: status.HTTP_404_NOT_FOUND,
@@ -72,10 +71,7 @@ root_router = APIRouter(tags=["Holds"])
 async def hold_room(
     room_id: Annotated[int, Path(gt=0)],
     session: SessionDep,
-    guest: Annotated[
-        User,
-        Depends(require_guest),
-    ],
+    guest: Annotated[User, Depends(require_guest)]
 ) -> ApiResponse[Hold]:
     try:
         room = await get_room(room_id=room_id, session=session)
